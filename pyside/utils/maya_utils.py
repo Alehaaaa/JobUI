@@ -1,12 +1,14 @@
 try:
-    from maya import cmds
     import maya.OpenMayaUI as omui
 
     MAYA_AVAILABLE = True
 except ImportError:
     MAYA_AVAILABLE = False
 
-from PySide2 import QtWidgets
+try:
+    from PySide2 import QtWidgets
+except ImportError:
+    from PySide6 import QtWidgets
 
 try:
     from shiboken2 import wrapInstance

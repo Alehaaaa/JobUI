@@ -1,54 +1,54 @@
 import sys
 import os
-import io
 
 try:
     import importlib
 except ImportError:
     importlib = None
 
-TOOL_TITLE = "JobUI"
+
+# Add parent directory to sys.path so 'pyside' (this package) is importable
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+
+TOOL_TITLE = "Job Fetcher"
 MOD_NAME = __name__
+
 
 # Expose version
 try:
-    _v_path = os.path.join(os.path.dirname(__file__), "VERSION")
-    with io.open(_v_path, "rb") as _f:
-        _content = _f.read()
-        try:
-            VERSION = _content.decode("utf-8").strip()
-        except UnicodeDecodeError:
-            VERSION = _content.decode("utf-16").strip()
+    _v_path = os.path.join(current_dir, "VERSION")
+    with open(_v_path, "r", encoding="utf-8") as _f:
+        VERSION = _f.read().strip()
 except Exception:
     VERSION = "0.0.0"
 
 
-def show(mod_name=MOD_NAME):
-    # Determine the top-level package name to reload
-    # code might be imported as "pyside" or "JobsUI"
-    pass
-
-    # Reloading logic
-    # We want to remove submodules from sys.modules to force reload
-    for name in list(sys.modules.keys()):
-        if name == mod_name or name.startswith(mod_name + "."):
-            sys.modules.pop(name, None)
+def show(mod_name=MOD_NAME, force_reload=True):
+    if force_reload:
+        # Recursive reload for submodules in this package
+        for name in list(sys.modules.keys()):
+            if name == mod_name or name.startswith(mod_name + "."):
+                del sys.modules[name]
 
     if importlib and hasattr(importlib, "invalidate_caches"):
         importlib.invalidate_caches()
-        # Import the package again
-        importlib.import_module(mod_name)
-        # Import main
-        main_mod = importlib.import_module(mod_name + ".main")
-    else:
-        __import__(mod_name)
-        main_mod = __import__(mod_name + ".main", fromlist=["main"])
 
-    # Run the app
-    if hasattr(main_mod, "run"):
-        return main_mod.run()
-    else:
-        print(f"Error: {mod_name}.main has no 'run' function")
+    try:
+        # Re-import this package
+        if mod_name not in sys.modules:
+            importlib.import_module(mod_name)
+
+        main_mod = importlib.import_module(mod_name + ".main")
+        return main_mod.runner()
+    except Exception as e:
+        print(f"Error launching {mod_name}: {e}")
+        import traceback
+
+        traceback.print_exc()
 
 
 if __name__ == "__main__":

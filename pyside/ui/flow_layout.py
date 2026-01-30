@@ -1,4 +1,7 @@
-from PySide2 import QtWidgets, QtCore
+try:
+    from PySide2 import QtCore, QtWidgets
+except ImportError:
+    from PySide6 import QtCore, QtWidgets
 
 
 class FlowLayout(QtWidgets.QLayout):
@@ -75,14 +78,17 @@ class FlowLayout(QtWidgets.QLayout):
 
         for item in self._itemList:
             wid = item.widget()
+            if wid and not wid.isVisible():
+                continue
+
             spaceX = self.horizontalSpacing()
             if spaceX == -1:
-                spaceX = wid.style().layoutSpacing(
+                spaceX = QtWidgets.QApplication.style().layoutSpacing(
                     QtWidgets.QSizePolicy.PushButton, QtWidgets.QSizePolicy.PushButton, QtCore.Qt.Horizontal
                 )
             spaceY = self.verticalSpacing()
             if spaceY == -1:
-                spaceY = wid.style().layoutSpacing(
+                spaceY = QtWidgets.QApplication.style().layoutSpacing(
                     QtWidgets.QSizePolicy.PushButton, QtWidgets.QSizePolicy.PushButton, QtCore.Qt.Vertical
                 )
 
@@ -106,6 +112,7 @@ class FlowLayout(QtWidgets.QLayout):
         if not parent:
             return -1
         elif parent.isWidgetType():
-            return parent.style().pixelMetric(pm, None, parent)
+            # Use safe global style to avoid QProxyStyle deleted errors
+            return QtWidgets.QApplication.style().pixelMetric(pm, None, parent)
         else:
             return parent.spacing()

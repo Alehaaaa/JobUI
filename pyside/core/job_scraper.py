@@ -1,3 +1,4 @@
+from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 import json
@@ -522,48 +523,48 @@ class JobScraper:
 
         soup = BeautifulSoup(response.text, "html.parser")
         jobs = []
+        location = "Montpelier, Vermont"  # ajusta si quieres
 
-        # Site appears to be Squarespace or similar.
-        # Often jobs are headers (h1, h2, h3) or links in a text block.
-        # Strategy: Search for typical "Artist", "Director", "Generalist" keywords
-        # or structure: <h3>Job Title</h3> <p>Description/Link</p>
-
-        # Searching for links that look like potential job detail pages is rare on single-pagers.
-        # Little Zoo often lists positions on the main careers page.
-
-        # Heuristic 1: Look for H tags that might be job titles
-        # and see if there is a 'mailto' or 'apply' text nearby?
-
-        # Simplified: iterate all headers or bold text?
-        # Let's try to capture list items or headers followed by text.
-
-        # Specific to littlezoo website structure (assumed generic):
-        # Often <div class="sqs-block-content"><h3 ...>TITLE</h3> ... </div>
-
-        for h3 in soup.select("h3"):
-            text = h3.get_text(strip=True)
-            if not text:
+        for h2 in soup.select("div.sqs-block.markdown-block .sqs-block-content h2"):
+            title = h2.get_text(" ", strip=True)
+            if not title:
                 continue
 
-            # Filter non-job headers
-            if text.lower() in ["careers", "open positions", "jobs", "apply"]:
+            title = title.strip()
+            if title.endswith(":"):
+                title = title[:-1].strip()
+
+            if title.lower() in {"careers", "open positions", "jobs", "apply"}:
                 continue
 
-            # Assume this is a job title
-            title = text
-            location = "Orlando, FL"  # Known location
+            if title.upper() == "INTERNSHIPS":
+                block = h2.find_parent("div", class_="sqs-block")
+                block_text = block.get_text(" ", strip=True).lower() if block else ""
+                if "does not offer internships" in block_text:
+                    continue
 
-            # Link? Usually mailto on this site, or just text.
-            # If no link, we link to careers page.
-            link = url
+            markdown_block = h2.find_parent("div", class_="sqs-block")
+            apply_link = None
 
-            # Check if wrapped in A or has A nearby
-            a = h3.find_parent("a") or h3.find("a")
-            if a:
-                href = a.get("href")
-                if href:
-                    link = urllib.parse.urljoin(url, href)
+            if markdown_block:
+                for sib in markdown_block.find_next_siblings("div", class_="sqs-block"):
+                    if sib.select_one(".markdown-block h2"):
+                        break
 
-            jobs.append({"title": title, "link": link, "location": location})
+                    a = sib.select_one("a.sqs-block-button-element")
+                    if a and a.get("href"):
+                        apply_link = urljoin(url, a["href"])
+                        break
+
+            if not apply_link:
+                apply_link = url
+
+            jobs.append(
+                {
+                    "title": title,
+                    "link": apply_link,
+                    "location": location,
+                }
+            )
 
         return jobs

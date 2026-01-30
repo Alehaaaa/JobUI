@@ -1,4 +1,7 @@
-from PySide2 import QtWidgets, QtCore
+try:
+    from PySide2 import QtCore, QtWidgets, QtGui
+except ImportError:
+    from PySide6 import QtCore, QtWidgets, QtGui
 
 
 class EditStudioDialog(QtWidgets.QDialog):
@@ -7,70 +10,36 @@ class EditStudioDialog(QtWidgets.QDialog):
     def __init__(self, studio_data, parent=None):
         super(EditStudioDialog, self).__init__(parent)
         self.setWindowTitle(f"Edit {studio_data.get('name', 'Studio')}")
-        self.resize(500, 400)
+        self.resize(500, 300)
         self.studio_data = dict(studio_data)  # Make a copy
 
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #1e1e1e;
-                color: #ffffff;
-            }
-            QLabel {
-                color: #cccccc;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QLineEdit, QComboBox {
-                background-color: #2d2d2d;
-                border: 1px solid #3d3d3d;
-                border-radius: 4px;
-                color: #ffffff;
-                padding: 8px;
-                font-size: 13px;
-            }
-            QLineEdit:focus, QComboBox:focus {
-                border: 1px solid #007acc;
-            }
-            QPushButton {
-                background-color: #007acc;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 10px 20px;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #0062a3;
-            }
-            QPushButton:pressed {
-                background-color: #004d80;
-            }
-            QPushButton#cancel_btn {
-                background-color: #3d3d3d;
-            }
-            QPushButton#cancel_btn:hover {
-                background-color: #4d4d4d;
-            }
-        """)
-
         self.layout = QtWidgets.QVBoxLayout(self)
-        self.layout.setSpacing(15)
-        self.layout.setContentsMargins(25, 25, 25, 25)
+        self.layout.setSpacing(10)
+        self.layout.setContentsMargins(15, 15, 15, 15)
 
         # Title
         title = QtWidgets.QLabel("Edit Studio Details")
-        title.setStyleSheet("font-size: 18px; color: white; margin-bottom: 10px;")
+        font = title.font()
+        font.setPointSize(12)
+        font.setBold(True)
+        title.setFont(font)
         self.layout.addWidget(title)
 
         # ID Warning
         id_warning = QtWidgets.QLabel(f"Editing ID: {self.studio_data.get('id')}")
-        id_warning.setStyleSheet("color: #666; font-size: 12px; margin-bottom: 10px; font-style: italic;")
+        w_font = id_warning.font()
+        w_font.setItalic(True)
+        id_warning.setFont(w_font)
+
+        palette = id_warning.palette()
+        palette.setColor(QtGui.QPalette.WindowText, QtGui.QColor("gray"))
+        id_warning.setPalette(palette)
+
         self.layout.addWidget(id_warning)
 
         # Form Layout
         form_layout = QtWidgets.QFormLayout()
-        form_layout.setSpacing(10)
+        form_layout.setSpacing(8)
         self.layout.addLayout(form_layout)
 
         # Name
@@ -98,12 +67,12 @@ class EditStudioDialog(QtWidgets.QDialog):
         # Buttons
         btn_layout = QtWidgets.QHBoxLayout()
         self.cancel_btn = QtWidgets.QPushButton("Cancel")
-        self.cancel_btn.setObjectName("cancel_btn")
         self.cancel_btn.clicked.connect(self.reject)
 
         self.save_btn = QtWidgets.QPushButton("Save Changes")
         self.save_btn.clicked.connect(self.on_save)
 
+        btn_layout.addStretch()
         btn_layout.addWidget(self.cancel_btn)
         btn_layout.addWidget(self.save_btn)
         self.layout.addLayout(btn_layout)

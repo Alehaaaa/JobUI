@@ -1,11 +1,11 @@
 [
     {
-        "id": "disney",
-        "name": "Walt Disney Animation",
-        "logo_url": "https://flysaba.org/wp-content/uploads/2023/05/Disney-logo.png",
         "careers_url": "https://jobs.disneycareers.com/search-jobs?acm=ALL^&alrpm=6252001-5332921^&ascf=[{%22key%22:%22custom_fields.IndustryCustomField%22,%22value%22:%22Walt+Disney+Animation+Studios%22}]",
-        "website": "https://jobs.disneycareers.com",
-        "scraping_strategy": "disney_html"
+        "id": "disney",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/8/8f/Disney_logo.png",
+        "name": "Walt Disney Animation",
+        "scraping_strategy": "disney_html",
+        "website": "https://jobs.disneycareers.com"
     },
     {
         "id": "blur",
@@ -21,15 +21,15 @@
         "logo_url": "https://cdn.prod.website-files.com/64ea57571d50b02423c4505d/64f9e15b90d4d9e5678aeb32_pixar%20logo%20png.png",
         "careers_url": "https://pixar.wd501.myworkdayjobs.com/wday/cxs/pixar/Pixar_External_Career_Site/jobs",
         "website": "https://pixar.wd501.myworkdayjobs.com/Pixar_External_Career_Site",
-        "scraping_strategy": "workday_json"
+        "scraping_strategy": "pixar_json"
     },
     {
+        "careers_url": "https://elranchito.es/careers/open-positions/",
         "id": "ranchito",
+        "logo_url": "https://barsvfx.com/wp-content/uploads/2023/10/El-Ranchito-Combination-Mark-Landscape-Black-RGB@2x-1.png",
         "name": "El Ranchito",
-        "logo_url": "https://elranchito.es/wp-content/uploads/2025/03/El-Ranchito-Combination-Mark-Landscape-Red-RGB-1.svg",
-        "careers_url": "https://web.archive.org/web/20241010114245/elranchito.es/careers/open-positions/",
-        "website": "https://elranchito.es/careers/open-positions/",
-        "scraping_strategy": "ranchito_html"
+        "scraping_strategy": "ranchito_html",
+        "website": "https://elranchito.es/careers/open-positions/"
     },
     {
         "id": "dreamworks",
@@ -92,12 +92,12 @@
         "scraping_strategy": "giant_html"
     },
     {
-        "id": "netflix",
-        "name": "Netflix Animation Studios",
-        "logo_url": "https://www.netflixanimation.com/static/images/0_Nav-Bar_Logo_N-Anim_Stacked_Black.png",
         "careers_url": "https://explore.jobs.netflix.net/api/apply/v2/jobs",
-        "website": "https://explore.jobs.netflix.net/careers",
-        "scraping_strategy": "netflix_json"
+        "id": "netflix",
+        "logo_url": "https://www.netflixanimation.com/_next/static/media/0_Nav-Bar_Logo_NAS-Red-White.b0d228aa.png",
+        "name": "Netflix Animation Studios",
+        "scraping_strategy": "netflix_json",
+        "website": "https://explore.jobs.netflix.net/careers"
     },
     {
         "id": "wildchild",
@@ -143,5 +143,13 @@
         "careers_url": "https://illusoriumstudios.com/careers/",
         "website": "https://illusoriumstudios.com/careers/#jobs",
         "scraping_strategy": "illusorium_html"
+    },
+    {
+        "careers_url": "https://www.littlezoostudio.com/careers",
+        "id": "littlezoo",
+        "logo_url": "https://images.squarespace-cdn.com/content/v1/5bb12626c46f6d5eaedb2e5f/1562618648077-YR20L25ATBOFUVYLECMN/LZ_Website_Horizontal_LZ_Trans.png?format=300w",
+        "name": "Little Zoo Studio",
+        "scraping_strategy": "littlezoo_html",
+        "website": "https://www.littlezoostudio.com/"
     }
 ]
