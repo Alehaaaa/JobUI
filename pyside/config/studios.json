@@ -1,0 +1,147 @@
+[
+    {
+        "id": "disney",
+        "name": "Walt Disney Animation",
+        "logo_url": "https://flysaba.org/wp-content/uploads/2023/05/Disney-logo.png",
+        "careers_url": "https://jobs.disneycareers.com/search-jobs?acm=ALL^&alrpm=6252001-5332921^&ascf=[{%22key%22:%22custom_fields.IndustryCustomField%22,%22value%22:%22Walt+Disney+Animation+Studios%22}]",
+        "website": "https://jobs.disneycareers.com",
+        "scraping_strategy": "disney_html"
+    },
+    {
+        "id": "blur",
+        "name": "Blur Studio",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/en/thumb/d/d7/Blur_Studio_logo.svg/1920px-Blur_Studio_logo.svg.png",
+        "careers_url": "https://job-boards.greenhouse.io/blurstudio",
+        "website": "https://blur.com/careers",
+        "scraping_strategy": "greenhouse_html"
+    },
+    {
+        "id": "pixar",
+        "name": "Pixar",
+        "logo_url": "https://cdn.prod.website-files.com/64ea57571d50b02423c4505d/64f9e15b90d4d9e5678aeb32_pixar%20logo%20png.png",
+        "careers_url": "https://pixar.wd501.myworkdayjobs.com/wday/cxs/pixar/Pixar_External_Career_Site/jobs",
+        "website": "https://pixar.wd501.myworkdayjobs.com/Pixar_External_Career_Site",
+        "scraping_strategy": "workday_json"
+    },
+    {
+        "id": "ranchito",
+        "name": "El Ranchito",
+        "logo_url": "https://elranchito.es/wp-content/uploads/2025/03/El-Ranchito-Combination-Mark-Landscape-Red-RGB-1.svg",
+        "careers_url": "https://web.archive.org/web/20241010114245/elranchito.es/careers/open-positions/",
+        "website": "https://elranchito.es/careers/open-positions/",
+        "scraping_strategy": "ranchito_html"
+    },
+    {
+        "id": "dreamworks",
+        "name": "DreamWorks",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/c/c7/DreamWorks_Animation_SKG_logo.svg",
+        "careers_url": "https://www.nbcunicareers.com/api/opensearch/brjobs?_format=json&keyword=DreamWorks",
+        "website": "https://www.nbcunicareers.com/find-a-job?keyword=DreamWorks&cmpid=DreamWorks",
+        "scraping_strategy": "dreamworks_json"
+    },
+    {
+        "id": "sony",
+        "name": "Sony Pictures Animation",
+        "logo_url": "https://worldvectorlogo.com/download/sony-pictures-animation-logo-2018.svg",
+        "careers_url": "https://job-boards.greenhouse.io/sonypicturesanimation",
+        "scraping_strategy": "greenhouse_html"
+    },
+    {
+        "id": "dneg",
+        "name": "DNEG",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/f/f2/DNEG_Animation_current_color_logo.png",
+        "careers_url": "https://jobs.jobvite.com/double-negative-visual-effects/?nl=1&fr=true",
+        "website": "https://www.dneg.com/join-us/open-positions",
+        "scraping_strategy": "dneg_html"
+    },
+    {
+        "id": "illumination",
+        "name": "Illumination",
+        "logo_url": "https://static.wikia.nocookie.net/logopedia/images/c/c1/Illumination_Entertainment.svg",
+        "careers_url": "https://api.lever.co/v0/postings/illumination?mode=json",
+        "website": "https://www.illumination.com/homepage/careers/",
+        "scraping_strategy": "lever_json"
+    },
+    {
+        "id": "fortiche",
+        "name": "Fortiche",
+        "logo_url": "https://www.filmfrance.net/app/uploads/2024/06/Logo_Fortiche.png",
+        "careers_url": "https://careers.forticheprod.com/",
+        "scraping_strategy": "fortiche_html"
+    },
+    {
+        "id": "mikros",
+        "name": "Mikros Animation",
+        "logo_url": "https://static.wikia.nocookie.net/magicampers/images/f/f9/Mikros_Animation_logo.png",
+        "careers_url": "https://api.smartrecruiters.com/v1/companies/rodeofx/postings?language=en",
+        "website": "https://www.smartrecruiters.com/RodeoFX/",
+        "scraping_strategy": "mikros_html"
+    },
+    {
+        "id": "steamroller",
+        "name": "Steamroller",
+        "logo_url": "https://images.squarespace-cdn.com/content/v1/67f6636e2f4e905b54511328/1744200713785-AN4IHNUS164VDOH6YVXV/SteamrollerAnimation.png",
+        "careers_url": "https://ats.rippling.com/steamroller-animation/jobs",
+        "scraping_strategy": "steamroller_html"
+    },
+    {
+        "id": "giant",
+        "name": "Giant Animation",
+        "logo_url": "https://giantanimation.ie/wp-content/themes/giant/assets/img/logo.png",
+        "careers_url": "https://giantanimation.ie/careers",
+        "scraping_strategy": "giant_html"
+    },
+    {
+        "id": "netflix",
+        "name": "Netflix Animation Studios",
+        "logo_url": "https://www.netflixanimation.com/static/images/0_Nav-Bar_Logo_N-Anim_Stacked_Black.png",
+        "careers_url": "https://explore.jobs.netflix.net/api/apply/v2/jobs",
+        "website": "https://explore.jobs.netflix.net/careers",
+        "scraping_strategy": "netflix_json"
+    },
+    {
+        "id": "wildchild",
+        "name": "Wild Child Animation",
+        "logo_url": "https://wildchildanimation.com/wp-content/uploads/2025/05/logo.svg",
+        "careers_url": "https://wildchildanimation1.bamboohr.com",
+        "scraping_strategy": "bamboohr_json"
+    },
+    {
+        "id": "flyingbark",
+        "name": "Flying Bark Productions",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/en/thumb/6/67/Flying_Bark_Productions_logo.svg/1920px-Flying_Bark_Productions_logo.svg.png",
+        "careers_url": "https://flyingbark.bamboohr.com",
+        "scraping_strategy": "bamboohr_json"
+    },
+    {
+        "id": "rodeofx",
+        "name": "Rodeo FX",
+        "logo_url": "https://www.rodeofx.com/static/img/logo-rodeo.3e4b8e9e.svg",
+        "careers_url": "https://api.smartrecruiters.com/v1/companies/rodeofx/postings?language=en",
+        "website": "https://www.smartrecruiters.com/RodeoFX/",
+        "scraping_strategy": "smartrecruiters_json"
+    },
+    {
+        "id": "framestore",
+        "name": "Framestore",
+        "logo_url": "https://careers.recruiteecdn.com/image/upload/production/images/BITW/CYm9wW_0Mq1Z.png",
+        "careers_url": "https://framestore.recruitee.com",
+        "scraping_strategy": "framestore_html"
+    },
+    {
+        "id": "skydance",
+        "name": "Skydance",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/6/60/Skydance_Animation_New_Logo.png",
+        "careers_url": "https://skydance.com/job-listings/",
+        "website": "https://skydance.com",
+        "scraping_strategy": "skydance_html"
+    },
+    {
+        "id": "illusorium",
+        "name": "Illusorium",
+        "logo_url": "https://illusoriumstudios.com/wp-content/uploads/2023/09/isotipo_ill_100x100_white.png",
+        "careers_url": "https://illusoriumstudios.com/careers/",
+        "website": "https://illusoriumstudios.com/careers/#jobs",
+        "scraping_strategy": "illusorium_html"
+    }
+]
