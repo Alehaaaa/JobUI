@@ -1,5 +1,8 @@
 import sys
 import os
+from .core.logger import LOGGING, logger
+
+__all__ = ["LOGGING", "logger", "show", "VERSION", "TOOL_TITLE"]
 
 try:
     import importlib
@@ -45,7 +48,7 @@ def show(mod_name=MOD_NAME, force_reload=True):
         main_mod = importlib.import_module(mod_name + ".main")
         return main_mod.runner()
     except Exception as e:
-        print(f"Error launching {mod_name}: {e}")
+        logger.error(f"Error launching {mod_name}: {e}")
         import traceback
 
         traceback.print_exc()

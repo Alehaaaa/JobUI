@@ -1,16 +1,18 @@
 JOB_WIDGET_STYLE = """
     JobWidget {
-        border: 1px solid #444;
-        border-radius: 2px;
-        background-color: transparent;
+        border: 1px solid #555;
+        border-radius: 4px;
+        background-color: rgba(255, 255, 255, 0.03);
     }
     QPushButton {
-        border: 1px solid #444;
+        border: 1px solid #555;
         background-color: transparent;
+        border-radius: 3px;
         padding: 2px;
     }
     QPushButton:hover {
-        background-color: #333;
+        background-color: #444;
+        border-color: #777;
     }
 """
 
@@ -39,13 +41,8 @@ GLOBAL_STYLE = """
         color: #ddd;
         padding: 4px;
     }
-    QPushButton#fetch_all_btn {
-        background-color: #333;
-        border: 1px solid #555;
-        padding: 4px 10px;
-    }
 """
 
 NO_RESULTS_STYLE = "color: #555; font-style: italic;"
-LOCATION_STYLE = "color: #777;"
+LOCATION_STYLE = "color: #888;"
 TITLE_STYLE = "color: #eee; font-weight: bold;"

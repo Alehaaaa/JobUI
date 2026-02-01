@@ -39,3 +39,39 @@ class ClickableLabel(QtWidgets.QLabel):
         if event.button() == QtCore.Qt.LeftButton:
             self.clicked.emit()
         super(ClickableLabel, self).mousePressEvent(event)
+
+
+class OpenMenu(QtWidgets.QMenu):
+    def __init__(self, title=None, parent=None):
+        super(OpenMenu, self).__init__(title, parent) if title else super(OpenMenu, self).__init__(parent)
+        self.setSeparatorsCollapsible(False)
+        if parent and hasattr(parent, "destroyed"):
+            parent.destroyed.connect(self.close)
+        self.triggered.connect(self._on_action_triggered)
+
+    def _on_action_triggered(self, action):
+        if isinstance(action, QtWidgets.QWidgetAction):
+            return
+
+    def showEvent(self, event):
+        self._show_time = QtCore.QDateTime.currentMSecsSinceEpoch()
+        self._show_pos = QtGui.QCursor.pos()
+        super(OpenMenu, self).showEvent(event)
+
+    def mouseReleaseEvent(self, e):
+        # Prevent accidental trigger if menu was just opened via QPushButton click
+        # Ignoring release if it's within 200ms and mouse hasn't moved much
+        if hasattr(self, "_show_time"):
+            time_diff = QtCore.QDateTime.currentMSecsSinceEpoch() - self._show_time
+            pos_diff = (QtGui.QCursor.pos() - self._show_pos).manhattanLength()
+            if time_diff < 200 and pos_diff < 5:
+                return
+
+        action = self.actionAt(e.pos())
+        if action and action.isEnabled():
+            action.setEnabled(False)
+            super(OpenMenu, self).mouseReleaseEvent(e)
+            action.setEnabled(True)
+            action.trigger()
+        else:
+            super(OpenMenu, self).mouseReleaseEvent(e)

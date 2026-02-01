@@ -6,9 +6,10 @@ except ImportError:
     from PySide6.QtGui import QAction  # noqa: F401
 import re
 import os
+from ..core.logger import logger
 
 from .flow_layout import FlowLayout
-from .widgets import WaitingSpinner, ClickableLabel
+from .widgets import WaitingSpinner, ClickableLabel, OpenMenu
 from .styles import (
     JOB_WIDGET_STYLE,
     STUDIO_WIDGET_STYLE,
@@ -21,6 +22,12 @@ from .styles import (
 import maya.cmds as cmds
 
 from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
+from maya.OpenMayaUI import MQtUtil  # type: ignore
+
+try:
+    from shiboken6 import wrapInstance, isValid  # type: ignore
+except ImportError:
+    from shiboken2 import wrapInstance, isValid  # type: ignore
 
 
 try:
@@ -60,28 +67,29 @@ class JobWidget(QtWidgets.QFrame):
 
         self.location_label = QtWidgets.QLabel(clean_loc)
         self.location_label.setWordWrap(True)
-
         self.location_label.setStyleSheet(LOCATION_STYLE)
 
-        layout.addWidget(self.location_label)
+        # Bottom row: Location (left) + Link Button (right)
+        bottom_layout = QtWidgets.QHBoxLayout()
+        bottom_layout.setContentsMargins(0, 0, 0, 0)
+        bottom_layout.setSpacing(4)
 
-        layout.addStretch()  # Push content up
-
-        # Link Button Overlay or Layout?
-        # Adding to layout
-        btn_layout = QtWidgets.QHBoxLayout()
-        btn_layout.addStretch()
+        bottom_layout.addWidget(self.location_label)
+        bottom_layout.addStretch()
 
         self.link_btn = QtWidgets.QPushButton()
         self.link_btn.setIcon(QtWidgets.QApplication.style().standardIcon(QtWidgets.QStyle.SP_ArrowRight))
-        # No flat button as requested
         self.link_btn.setFlat(False)
         self.link_btn.setToolTip("Open Job Link")
         self.link_btn.clicked.connect(self.open_link)
         self.link_btn.setFixedSize(30, 24)
+        self.link_btn.setCursor(QtCore.Qt.PointingHandCursor)
 
-        btn_layout.addWidget(self.link_btn)
-        layout.addLayout(btn_layout)
+        bottom_layout.addWidget(self.link_btn)
+        layout.addLayout(bottom_layout)
+
+        if not clean_loc:
+            self.location_label.hide()
 
     def open_link(self):
         link = self.job_data.get("link")
@@ -110,54 +118,62 @@ class StudioWidget(QtWidgets.QFrame):
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
 
-        # -- Header: Logo, Name, Refresh --
+        # -- Header: Centered Logo/Name with balanced spacing --
         header_layout = QtWidgets.QHBoxLayout()
         header_layout.setContentsMargins(5, 5, 5, 0)
+        header_layout.setSpacing(0)
 
-        # Logo (Centered)
-        # Use ClickableLabel
+        # Balancing spacer on the left (matches controls width)
+        header_layout.addSpacing(30)
+        header_layout.addStretch()
+
+        # Logo/Name (Centered)
         self.logo_label = ClickableLabel()
         self.logo_label.setAlignment(QtCore.Qt.AlignCenter)
         self.logo_label.setFixedSize(100, 40)
         self.logo_label.clicked.connect(self.open_careers_page)
         self.logo_label.setToolTip("Open Careers Page")
 
-        # Name (Centered effectively by hiding logo)
         self.name_label = ClickableLabel()
         self.name_label.setStyleSheet("font-weight: bold; border: none;")
         self.name_label.setAlignment(QtCore.Qt.AlignCenter)
         self.name_label.setWordWrap(True)
+        self.name_label.setText(studio_data.get("name") or studio_data.get("id"))
         self.name_label.clicked.connect(self.open_careers_page)
         self.name_label.setToolTip("Open Careers Page")
 
-        header_layout.addStretch()
         header_layout.addWidget(self.logo_label)
         header_layout.addWidget(self.name_label)
         header_layout.addStretch()
 
-        # Stack Refresh and Spinner
+        # Controls container (Refresh/Spinner)
+        self.controls_container = QtWidgets.QWidget()
+        self.controls_container.setFixedSize(30, 30)
+        controls_layout = QtWidgets.QStackedLayout(self.controls_container)
+        controls_layout.setStackingMode(QtWidgets.QStackedLayout.StackAll)
+
         self.refresh_btn = QtWidgets.QPushButton()
-        self.refresh_btn.setIcon(
-            QtWidgets.QApplication.style().standardIcon(QtWidgets.QStyle.SP_BrowserReload)
-        )
+        self.refresh_btn.setIcon(QtWidgets.QApplication.style().standardIcon(QtWidgets.QStyle.SP_BrowserReload))
         self.refresh_btn.setFlat(True)
         self.refresh_btn.setFixedSize(25, 25)
         self.refresh_btn.clicked.connect(self.fetch_jobs)
-        self.refresh_btn.setStyleSheet("border: none;")
+        self.refresh_btn.setStyleSheet("border: none; margin: 0; padding: 0;")
+        self.refresh_btn.setCursor(QtCore.Qt.PointingHandCursor)
 
         self.spinner = WaitingSpinner()
+        self.spinner.setFixedSize(25, 25)
         self.spinner.hide()
 
-        header_layout.addWidget(self.refresh_btn)
-        header_layout.addWidget(self.spinner)
+        controls_layout.addWidget(self.refresh_btn)
+        controls_layout.addWidget(self.spinner)
 
+        header_layout.addWidget(self.controls_container)
         layout.addLayout(header_layout)
 
         # -- Body: Vertical Scroll of Jobs --
         self.scroll_area = QtWidgets.QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setFrameShape(QtWidgets.QFrame.NoFrame)
-        # Removed setStyleSheet to allow native scrollbars (like main window)
 
         self.scroll_content = QtWidgets.QWidget()
         self.scroll_content.setStyleSheet("background: transparent;")
@@ -254,8 +270,6 @@ class StudioWidget(QtWidgets.QFrame):
             item = self.scroll_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-            elif item.spacerItem():
-                pass  # Removed
 
         jobs = self.config_manager.get_studio_jobs(self.studio_data.get("id"))
         self.job_widgets = []
@@ -307,7 +321,7 @@ class StudioWidget(QtWidgets.QFrame):
 class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
     TOOL_TITLE = "JobUI Manager"
     TOOL_OBJECT_NAME = "JobUIManager"
-    WORKSPACE_CONTROL_NAME = "JobUIWorkspaceControl"
+    WORKSPACE_CONTROL_NAME = "JobUIManagerWorkspaceControl"
 
     def __init__(self, parent=None):
         try:
@@ -330,21 +344,43 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         except (ImportError, ValueError):
             from core.config_manager import ConfigManager
 
+        self.settings = QtCore.QSettings("JobUI", "MainWindow")
+
+        # Load settings
         self.config_manager = ConfigManager()
         self.studio_widgets = []
 
+        # Filter: On by default
+        val = self.settings.value("only_show_with_jobs")
+        if val is None:
+            self._only_show_with_jobs = True
+        else:
+            self._only_show_with_jobs = val if isinstance(val, bool) else (str(val).lower() == "true")
+
         self.setup_ui()
+
+        # Restore search text
+        last_search = self.settings.value("last_search", "")
+        if last_search:
+            self.search_input.setText(last_search)
+
         self.refresh_studios_list()
 
         self.config_manager.studio_visibility_changed.connect(self.on_studio_visibility_changed)
         self.config_manager.studios_refreshed.connect(self.refresh_studios_list)
-        self.config_manager.jobs_updated.connect(lambda sid, jobs: self._do_search())
+        self.config_manager.jobs_updated.connect(self._on_jobs_updated_signal)
 
         # Debounce timer for search
         self.search_timer = QtCore.QTimer()
         self.search_timer.setSingleShot(True)
         self.search_timer.setInterval(250)
         self.search_timer.timeout.connect(self._do_search)
+
+        # Debounce timer for saving search settings
+        self.save_search_timer = QtCore.QTimer()
+        self.save_search_timer.setSingleShot(True)
+        self.save_search_timer.setInterval(1000)
+        self.save_search_timer.timeout.connect(self._save_search_text)
 
         # Fetch all on startup
         QtCore.QTimer.singleShot(500, self.config_manager.fetch_all_jobs)
@@ -366,9 +402,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         # Fetch All Button
         self.fetch_all_btn = QtWidgets.QPushButton("Refetch All")
         self.fetch_all_btn.setObjectName("fetch_all_btn")
-        self.fetch_all_btn.setIcon(
-            QtWidgets.QApplication.style().standardIcon(QtWidgets.QStyle.SP_BrowserReload)
-        )
+        self.fetch_all_btn.setIcon(QtWidgets.QApplication.style().standardIcon(QtWidgets.QStyle.SP_BrowserReload))
         self.fetch_all_btn.clicked.connect(self.config_manager.fetch_all_jobs)
         top_bar.addWidget(self.fetch_all_btn)
 
@@ -384,6 +418,24 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         # Use FlowLayout here
         self.studios_layout = FlowLayout(self.studios_container, margin=10)
 
+        # -- Placeholders --
+        self.lbl_no_studios_setup = QtWidgets.QLabel("No studios setup. Go to Options > Add Studio... to get started.")
+        self.lbl_no_studios_setup.setAlignment(QtCore.Qt.AlignCenter)
+        self.lbl_no_studios_setup.setStyleSheet(NO_RESULTS_STYLE)
+        self.lbl_no_studios_setup.setWordWrap(True)
+        self.lbl_no_studios_setup.hide()
+
+        self.lbl_no_studios_enabled = QtWidgets.QLabel("No studios enabled. Enable them in the Studios menu.")
+        self.lbl_no_studios_enabled.setAlignment(QtCore.Qt.AlignCenter)
+        self.lbl_no_studios_enabled.setStyleSheet(NO_RESULTS_STYLE)
+        self.lbl_no_studios_enabled.setWordWrap(True)
+        self.lbl_no_studios_enabled.hide()
+
+        self.lbl_no_matches = QtWidgets.QLabel("No studios match your filter.")
+        self.lbl_no_matches.setAlignment(QtCore.Qt.AlignCenter)
+        self.lbl_no_matches.setStyleSheet(NO_RESULTS_STYLE)
+        self.lbl_no_matches.hide()
+
         self.scroll_area.setWidget(self.studios_container)
         main_layout.addWidget(self.scroll_area)
 
@@ -393,13 +445,22 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
     def setup_menu(self):
         menubar = self.menuBar()
 
-        self.studios_menu = menubar.addMenu("Studios")
+        self.studios_menu = OpenMenu("Studios", self)
         self.studios_menu.aboutToShow.connect(self.populate_studios_menu)
+        menubar.addMenu(self.studios_menu)
 
         # Populate immediately so it isn't empty (which might prevent opening)
         self.populate_studios_menu()
 
         opts = menubar.addMenu("Options")
+
+        self.act_jobs_only = QAction("Only Show With Jobs", self)
+        self.act_jobs_only.setCheckable(True)
+        self.act_jobs_only.setChecked(self._only_show_with_jobs)
+        self.act_jobs_only.triggered.connect(self.toggle_only_show_with_jobs)
+        opts.addAction(self.act_jobs_only)
+
+        opts.addSeparator()
 
         act = QAction("Refresh All Logos", self)
         act.triggered.connect(self.config_manager.refresh_logos)
@@ -435,6 +496,11 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
             act.triggered.connect(make_handler(sid))
             self.studios_menu.addAction(act)
 
+    def toggle_only_show_with_jobs(self, checked):
+        self._only_show_with_jobs = checked
+        self.settings.setValue("only_show_with_jobs", checked)
+        self._do_search()
+
     def open_add_studio_dialog(self):
         from .add_studio_dialog import AddStudioDialog
 
@@ -449,6 +515,9 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         for sw in self.studio_widgets:
             if sw.studio_data.get("id") == studio_id:
                 sw.setVisible(enabled)
+                # Invalidate and activate layout to trigger repositioning
+                self.studios_layout.invalidate()
+                self.studios_layout.activate()
                 return
 
     def refresh_studios_list(self):
@@ -460,8 +529,10 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
 
         self.studio_widgets = []
         studios = self.config_manager.get_studios()
+        # Sort by name to match the menu and provide consistent UI
+        sorted_studios = sorted(studios, key=lambda s: s.get("name", "").lower())
 
-        for studio in studios:
+        for studio in sorted_studios:
             is_enabled = self.config_manager.is_studio_enabled(studio.get("id"))
             sw = StudioWidget(studio, self.config_manager)
             self.studios_layout.addWidget(sw)
@@ -470,27 +541,191 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
                 sw.hide()
 
         self._do_search()
-        print(f"Loaded {len(studios)} studios.")
+
+        # Update placeholders for refresh
+        num_studios = len(studios)
+        has_enabled = any(self.config_manager.is_studio_enabled(s.get("id")) for s in studios)
+
+        self.lbl_no_studios_setup.setVisible(num_studios == 0)
+        self.lbl_no_studios_enabled.setVisible(num_studios > 0 and not has_enabled)
+
+        if self.lbl_no_studios_setup.isVisible():
+            self.studios_layout.addWidget(self.lbl_no_studios_setup)
+        if self.lbl_no_studios_enabled.isVisible():
+            self.studios_layout.addWidget(self.lbl_no_studios_enabled)
+
+        logger.info(f"Loaded {len(studios)} studios.")
 
     def on_search_changed(self, text):
-        self.search_timer.start()
+        if not isValid(self):
+            return
+        if hasattr(self, "search_timer") and self.search_timer:
+            self.search_timer.start()
+        if hasattr(self, "save_search_timer") and self.save_search_timer:
+            self.save_search_timer.start()
+
+    def _save_search_text(self):
+        if not isValid(self) or not isValid(self.search_input):
+            return
+        self.settings.setValue("last_search", self.search_input.text())
+        logger.info("Search text saved to settings.")
+
+    def _on_jobs_updated_signal(self, sid, jobs):
+        """Signal handler for jobs being ready."""
+        if isValid(self):
+            self._do_search()
 
     def _do_search(self):
+        if not isValid(self) or not isValid(self.search_input):
+            return
+
         text = self.search_input.text()
+        visible_count = 0
+        enabled_count = 0
+
         for sw in self.studio_widgets:
-            sw.filter_jobs(text)
+            match_count = sw.filter_jobs(text)
+
+            # Check primary enabled state
+            sid = sw.studio_data.get("id")
+            is_enabled = self.config_manager.is_studio_enabled(sid)
+
+            if is_enabled:
+                enabled_count += 1
+                if self._only_show_with_jobs and match_count == 0:
+                    sw.hide()
+                else:
+                    sw.show()
+                    visible_count += 1
+            else:
+                sw.hide()
+
+        # Update Match Placeholder
+        # Only show "No matches" if we actually have enabled studios but none are visible
+        self.lbl_no_matches.setVisible(enabled_count > 0 and visible_count == 0)
+        if self.lbl_no_matches.isVisible():
+            self.studios_layout.addWidget(self.lbl_no_matches)
+
+        self.studios_layout.invalidate()
+        self.studios_layout.activate()
 
     def set_windowPosition(self):
+        """
+        Restores or initializes the dock/floating position of the workspace control.
+        """
         settings = QtCore.QSettings("JobUI", "MainWindow")
-        geometry = settings.value("geometry")
-        if geometry:
-            self.restoreGeometry(geometry)
+
+        # Helper for bool setting
+        val = settings.value("floating")
+        floating = val if isinstance(val, bool) else (str(val).lower() == "true")
+
+        logger.info("Restoring floating = {}".format(floating))
+        position = settings.value("position")
+        size = settings.value("size")
+
+        kwargs = {
+            "e": True,
+            "label": self.TOOL_TITLE,
+            "minimumWidth": 370,
+            "retain": False,
+        }
+
+        # If floating, restore previous floating geometry
+        if floating:
+            kwargs["floating"] = True
+
+        else:
+            # Try to dock next to a known panel
+            dock_target = None
+            for ctl in ("ChannelBoxLayerEditor", "AttributeEditor"):
+                if cmds.workspaceControl(ctl, exists=True):
+                    dock_target = ctl
+                    break
+
+            if dock_target:
+                kwargs["tabToControl"] = [dock_target, -1]
+                logger.info("Docking to: {}".format(dock_target))
+            else:
+                logger.info("No valid dock target found; defaulting to floating.")
+                kwargs["floating"] = True
+
+        try:
+            cmds.workspaceControl(self.WORKSPACE_CONTROL_NAME, **kwargs)
+        except Exception as e:
+            logger.error("Error positioning workspace control: {}".format(e))
+
+        try:
+            if floating and position and size:
+                ptr = MQtUtil.findControl(self.WORKSPACE_CONTROL_NAME)
+                qt_control = wrapInstance(int(ptr), QtWidgets.QWidget).window()
+
+                logger.info("Setting workspace control position: {}".format(position))
+                logger.info("Setting workspace control size: {}".format(size))
+                qt_control.setGeometry(QtCore.QRect(int(position[0]), int(position[1]), int(size[0]), int(size[1])))
+        except Exception as e:
+            logger.error("Error setting workspace control geometry: {}".format(e))
 
     def save_windowPosition(self):
+        """
+        Saves the current window state (floating or docked), position, and size.
+        """
         settings = QtCore.QSettings("JobUI", "MainWindow")
-        settings.setValue("geometry", self.saveGeometry())
+
+        # Save Search and Filter state
+        settings.setValue("last_search", self.search_input.text())
+        settings.setValue("only_show_with_jobs", self._only_show_with_jobs)
+
+        try:
+            if not cmds.workspaceControl(self.WORKSPACE_CONTROL_NAME, exists=True):
+                logger.warning("No workspace control found to save position.")
+                return
+
+            # Check if the workspace control is floating or docked
+            floating = cmds.workspaceControl(self.WORKSPACE_CONTROL_NAME, q=True, floating=True)
+            logger.info("Workspace control is {}".format("floating" if floating else "docked"))
+
+            if floating:
+                ptr = MQtUtil.findControl(self.WORKSPACE_CONTROL_NAME)
+                qt_control = wrapInstance(int(ptr), QtWidgets.QWidget)
+                geo = qt_control.geometry()
+                top_left_global = qt_control.mapToGlobal(geo.topLeft())
+
+                position = (top_left_global.x(), top_left_global.y())
+                size = (geo.width(), geo.height())
+
+                settings.setValue("position", position)
+                settings.setValue("size", size)
+
+                settings.setValue("floating", True)
+                logger.info("Saved floating = {} position {} size {}".format(True, position, size))
+            else:
+                settings.setValue("floating", False)
+                logger.info("Saved floating = {}".format(False))
+
+            settings.sync()  # Force settings to write immediately
+            logger.info("Window position saved successfully.")
+
+        except Exception as e:
+            logger.error("Error saving window position: {}".format(e))
 
     def _cleanup(self):
+        # Stop timers
+        if hasattr(self, "search_timer") and self.search_timer.isRunning():
+            self.search_timer.stop()
+        if hasattr(self, "save_search_timer") and self.save_search_timer.isRunning():
+            self.save_search_timer.stop()
+
+        if self.config_manager:
+            # Disconnect signals to prevent callbacks to a deleted UI
+            try:
+                self.config_manager.studio_visibility_changed.disconnect(self.on_studio_visibility_changed)
+                self.config_manager.studios_refreshed.disconnect(self.refresh_studios_list)
+                self.config_manager.jobs_updated.disconnect(self._on_jobs_updated_signal)
+            except (RuntimeError, TypeError):
+                pass
+
+            self.config_manager.cleanup()
+
         try:
             if cmds.workspaceControl(self.WORKSPACE_CONTROL_NAME, exists=True):
                 cmds.deleteUI(self.WORKSPACE_CONTROL_NAME)

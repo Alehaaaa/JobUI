@@ -4,6 +4,11 @@ from bs4 import BeautifulSoup
 import json
 import urllib.parse
 import ssl
+from .logger import logger
+
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Create an unverified SSL context for all requests calls to avoid CERT_VERIFY_FAILED
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -12,6 +17,7 @@ ssl._create_default_https_context = ssl._create_unverified_context
 class JobScraper:
     def __init__(self):
         self.session = requests.Session()
+        self.session.verify = False
         self.session.headers.update(
             {
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
@@ -28,10 +34,10 @@ class JobScraper:
             try:
                 return getattr(self, method_name)(studio)
             except Exception as e:
-                print(f"Error fetching jobs for {studio.get('name')}: {e}")
+                logger.error(f"Error fetching jobs for {studio.get('name')}: {e}")
                 return []
         else:
-            print(f"Strategy {strategy} not implemented")
+            logger.warning(f"Strategy {strategy} not implemented")
             return []
 
     # --- Strategy Implementations ---
@@ -39,12 +45,11 @@ class JobScraper:
     def fetch_netflix_json(self, studio):
         careers_url = studio.get("careers_url")
         # studio["careers_url"] is base API url
-        # Logic from Swift:
-        # params: domain=netflix.com, num=10, sort_by=relevance, Teams=[...]
+        # Parameters: domain=netflix.com, num=100, sort_by=relevance, Teams=[...]
 
         params = {
             "domain": "netflix.com",
-            "num": 100,  # Fetch more at once instead of pagination for now
+            "num": 100,  # Fetch more at once
             "sort_by": "relevance",
             "Teams": [
                 "Animation",
@@ -71,9 +76,6 @@ class JobScraper:
         return jobs
 
     def fetch_pixar_json(self, studio):
-        # Workday JSON POST
-        # URL: studio.get("careers_url")
-
         url = studio.get("careers_url")
         payload = {"appliedFacets": {}, "limit": 20, "searchText": ""}
         headers = {"Content-Type": "application/json"}
@@ -98,17 +100,17 @@ class JobScraper:
         try:
             response = self.session.get(url)
             response.raise_for_status()
-            data = response.json()  # List of ResponseData
+            data = response.json()
         except json.JSONDecodeError:
             return []
 
         jobs = []
-        # Swift: response.first?.rows
+
         if data and isinstance(data, list) and len(data) > 0:
             rows = data[0].get("rows", [])
             for row in rows:
                 title = row.get("title")
-                # title might contain HTML entities, BS4 can clean
+                # Clean HTML entities from title
                 title = BeautifulSoup(title, "html.parser").get_text()
                 link = row.get("field_detailurl")
                 location = row.get("field_location", "")
@@ -124,7 +126,7 @@ class JobScraper:
         soup = BeautifulSoup(response.text, "html.parser")
 
         jobs = []
-        # tr:has(span.job-location)
+
         for row in soup.select("tr"):
             if not row.select_one("span.job-location"):
                 continue
@@ -174,11 +176,7 @@ class JobScraper:
             state = loc_obj.get("state") or ""
             location = f"{city}, {state}".strip(", ")
 
-            # Link construction depends on studio usually
-            # Swift: studio.website + "careers/" + id
-            # Studio website logic seems variable, let's use base_url if possible or construct
-            # The swift code used studio.website.appendingPathComponent("careers/\($0.id)")
-            # Checking studio json, flyingbark website is empty? No, let's assume valid website in studio data.
+            # Construct link using website preference or base URL
             website = studio.get("website") or base_url
             link = f"{website}/careers/{pid}"
 
@@ -200,7 +198,6 @@ class JobScraper:
             pid = post.get("id")
             loc = post.get("location", {}).get("fullLocation", "")
 
-            # Swift: studio.website.appendingPathComponent($0.id)
             link = f"{website}/{pid}"
             jobs.append({"title": title, "link": link, "location": loc})
 
@@ -238,19 +235,8 @@ class JobScraper:
         jobs = []
         # tr.job-post
         for row in soup.select("tr.job-post"):
-            title_elem = row.select_one("p")  # Or sometimes 'a' directly? Swift says 'p'
-            # Wait, Swift says title is 'p', link is 'a'.
-            # In standard Greenhouse boards, the structure is usually <td class="cell"> <a href="...">Title</a> </td>
-            # But let's trust the Swift selectors: p, a, p.body__secondary
-
-            # If the Swift selector is specific to a custom greenhouse board, it might fail on others.
-            # Standard Greenhouse:
-            # <section class="level-0"> ... <div class="opening"> <a href="...">Title</a> <span class="location">...</span>
-
-            # Swift implementation:
-            # titleElement = row.select("p").first()
-            # linkElement = row.select("a").first()
-
+            title_elem = row.select_one("p")
+            # Fallback to 'a' tag for title if 'p' is missing
             if not title_elem:
                 # Try finding 'a' as title if p missing
                 link_elem = row.select_one("a")
@@ -270,7 +256,6 @@ class JobScraper:
                     jobs.append({"title": title, "link": full_link, "location": location})
                 continue
 
-            # Following Swift exactly
             link_elem = row.select_one("a")
             loc_elem = row.select_one("p.body__secondary")
 
@@ -279,7 +264,6 @@ class JobScraper:
                 href = link_elem.get("href")
                 location = loc_elem.get_text(strip=True) if loc_elem else ""
 
-                # Check if href is relative or absolute
                 full_link = href
                 if not href.startswith("http"):
                     # Basic greenhouse
@@ -296,8 +280,7 @@ class JobScraper:
 
         jobs = []
         for li in soup.select("li"):
-            # Swift: li:has(h5.post-date)
-            # BS4 doesn't support :has comfortably in all versions, manual check
+            # Manual check for elements since BS4 :has support varies
             if not li.select_one("h5.post-date"):
                 continue
 
@@ -316,7 +299,6 @@ class JobScraper:
         return jobs
 
     def fetch_mikros_html(self, studio):
-        # API JSON approach from Swift
         url = studio.get("careers_url")
         response = self.session.get(url)
         data = response.json()
@@ -334,7 +316,7 @@ class JobScraper:
             pid = post.get("id")
             loc = post.get("location", {}).get("fullLocation", "")
 
-            link = f"{website}/{pid}"  # appendingPathComponent might add slash
+            link = f"{website}/{pid}"
             jobs.append({"title": title, "link": link, "location": loc})
 
         return jobs
@@ -365,8 +347,6 @@ class JobScraper:
         jobs = []
         for elem in soup.select("div.css-aapqz6"):
             a = elem.select_one("a[href]")
-            # location is span[data-icon=LOCATION_OUTLINE] + p
-            # finding adjacent p
             loc_span = elem.select_one("span[data-icon='LOCATION_OUTLINE']")
             loc_p = loc_span.find_next("p") if loc_span else None
 
@@ -376,14 +356,6 @@ class JobScraper:
                 location = loc_p.get_text(strip=True) if loc_p else ""
 
                 if "/jobs/" in href:
-                    """link = urllib.parse.urljoin(
-                        studio.get("website"), href
-                    )  # actually relative to website? Swift says so
-                    # But website might be different domain. Swift says relative to studio.website
-                    # However in studios.json steamroller website is missing?
-                    # The URL in json is "https://ats.rippling.com/steamroller-animation/jobs" for careers
-                    # The link is likely relative to that domain."""
-
                     full_link = urllib.parse.urljoin("https://ats.rippling.com", href)
                     jobs.append({"title": title, "link": full_link, "location": location})
 
@@ -397,9 +369,6 @@ class JobScraper:
         jobs = []
         seen = set()
 
-        # Swift: select("div").filter childAnchor href^=/o/
-        # Simplified: select a[href^='/o/'] directly
-
         for a in soup.select("a[href^='/o/']"):
             href = a.get("href")
             if href in seen:
@@ -411,9 +380,7 @@ class JobScraper:
 
             seen.add(href)
 
-            # Location finding: container row
-            # Swift assumes a specific structure
-            row = a.find_parent("div")  # Approximate parent call
+            row = a.find_parent("div")
 
             location = ""
             if row:
@@ -453,7 +420,7 @@ class JobScraper:
         soup = BeautifulSoup(response.text, "html.parser")
 
         jobs = []
-        # div[id^=skydance_animation].mb-60
+
         for section in soup.select("div[id^='skydance_animation'].mb-60"):
             for element in section.select(".mb-40"):
                 title_elem = element.select_one(".treatment-title-small")
@@ -518,12 +485,12 @@ class JobScraper:
             response = self.session.get(url)
             response.raise_for_status()
         except requests.RequestException as e:
-            print(f"Error fetching Little Zoo: {e}")
+            logger.error(f"Error fetching Little Zoo: {e}")
             return []
 
         soup = BeautifulSoup(response.text, "html.parser")
         jobs = []
-        location = "Montpelier, Vermont"  # ajusta si quieres
+        location = "Montpelier, Vermont"
 
         for h2 in soup.select("div.sqs-block.markdown-block .sqs-block-content h2"):
             title = h2.get_text(" ", strip=True)

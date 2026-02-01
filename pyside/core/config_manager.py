@@ -2,6 +2,7 @@ import json
 import os
 import urllib.request
 import ssl
+from .logger import logger
 
 try:
     from PySide2 import QtCore, QtGui, QtSvg
@@ -20,7 +21,6 @@ class LogoWorker(QtCore.QThread):
             return QtGui.QImage()
 
         # Render to a QImage
-        # We can define a default size or use defaultSize()
         size = renderer.defaultSize()
         if size.isEmpty():
             size = QtCore.QSize(200, 200)  # Fallback
@@ -61,13 +61,16 @@ class LogoWorker(QtCore.QThread):
             with urllib.request.urlopen(req, context=ctx, timeout=10) as response:
                 data = response.read()
 
+            if not self._is_running:
+                return
+
             # Process Image
             if logo_url.lower().endswith(".svg"):
                 img = self.render_svg(data)
             else:
                 img = QtGui.QImage.fromData(data)
 
-            if img.isNull():
+            if img.isNull() or not self._is_running:
                 return
 
             # 1. Make White (preserve alpha)
@@ -78,14 +81,18 @@ class LogoWorker(QtCore.QThread):
             painter.end()
 
             # 2. Trim Padding
+            if not self._is_running:
+                return
             image = self.trim_image(image)
 
             # Save
-            image.save(filepath, "PNG")
-            self.logo_downloaded.emit(studio_id)
+            if self._is_running:
+                image.save(filepath, "PNG")
+                self.logo_downloaded.emit(studio_id)
 
         except Exception as e:
-            print(f"Failed to process logo for {studio_id}: {e}")
+            if self._is_running:
+                logger.error(f"Failed to process logo for {studio_id}: {e}")
 
     def run(self):
         import concurrent.futures
@@ -105,7 +112,8 @@ class LogoWorker(QtCore.QThread):
                     break
                 # results are handled via signals in process_logo
 
-        self.finished.emit()
+        if self._is_running:
+            self.finished.emit()
 
     def trim_image(self, image):
         """
@@ -121,10 +129,7 @@ class LogoWorker(QtCore.QThread):
 
         found = False
 
-        # We need to scan pixels.
-        # Optimized approach: check alpha of pixel.
-        # Format is ARGB32, so pixel values are integers.
-
+        # Check alpha channel for content boundaries
         for y in range(height):
             for x in range(width):
                 # get alpha
@@ -177,7 +182,6 @@ class ConfigManager(QtCore.QObject):
         # Settings for local preferences (enabled/disabled studios)
         self.settings = QtCore.QSettings("JobUI", "ConfigManager")
         self.disabled_studios = self.settings.value("disabled_studios", []) or []
-        # Ensure it's a list (QSettings might return None or other types depending on backend)
         if not isinstance(self.disabled_studios, list):
             self.disabled_studios = []
 
@@ -207,10 +211,10 @@ class ConfigManager(QtCore.QObject):
             project_root = os.path.dirname(self.root_dir)
             mac_config = os.path.join(project_root, "mac", "Resources", "studios.json")
             if os.path.exists(mac_config):
-                print(f"Using shared config from {mac_config}")
+                logger.info(f"Using shared config from {mac_config}")
                 self.config_path = mac_config
             else:
-                print(f"Config file not found at {self.config_path} or {mac_config}")
+                logger.error(f"Config file not found at {self.config_path} or {mac_config}")
 
         if os.path.exists(self.config_path):
             with open(self.config_path, "r") as f:
@@ -223,14 +227,11 @@ class ConfigManager(QtCore.QObject):
                             studios_map[s["id"]] = s
                     self.studios = list(studios_map.values())
 
-                    # If we filtered changes, save back? Maybe not strictly necessary unless requested,
-                    # but good for cleanup. User said "remove it first", likely immediately.
                     if len(self.studios) != len(raw_studios):
-                        print("Removed duplicate studios from config.")
                         self.save_config()
 
                 except json.JSONDecodeError:
-                    print(f"Error decoding {self.config_path}")
+                    logger.error(f"Error decoding {self.config_path}")
                     self.studios = []
         else:
             self.studios = []
@@ -340,9 +341,8 @@ class ConfigManager(QtCore.QObject):
             self.logo_worker.wait()
 
         self.logo_worker = LogoWorker(studios_to_download, self.logos_dir)
-        # Using lambda with *args to safely ignore arguments if signal signature changes,
-        # avoiding "TypeError: <lambda>() takes 1 positional argument but 2 were given"
-        self.logo_worker.logo_downloaded.connect(self.logo_downloaded.emit)  # Relay specific update
+        # Relay specific update and trigger generic update
+        self.logo_worker.logo_downloaded.connect(self.logo_downloaded.emit)
         self.logo_worker.logo_downloaded.connect(lambda sid: self.logos_updated.emit())  # Generic update
         self.logo_worker.start()
 
@@ -363,8 +363,7 @@ class ConfigManager(QtCore.QObject):
 
     def start_job_worker(self, studios):
         if self.job_worker and self.job_worker.isRunning():
-            # For now, we don't stop previous worker to allow parallel or queueing?
-            # Simple approach: one worker at a time.
+            # Ensure previous worker is stopped before starting new one
             self.job_worker.stop()
             self.job_worker.wait()
 
@@ -379,6 +378,29 @@ class ConfigManager(QtCore.QObject):
     def _on_jobs_ready(self, studio_id, jobs):
         self.jobs_cache[studio_id] = jobs
         self.jobs_updated.emit(studio_id, jobs)
+
+    def cleanup(self):
+        """Stops any running workers and prevents further updates."""
+        # Stop this object from sending any more signals to the UI
+        self.blockSignals(True)
+
+        if self.logo_worker:
+            try:
+                self.logo_worker.logo_downloaded.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            if self.logo_worker.isRunning():
+                self.logo_worker.stop()
+
+        if self.job_worker:
+            try:
+                self.job_worker.jobs_ready.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            if self.job_worker.isRunning():
+                self.job_worker.stop()
+
+        logger.info("ConfigManager cleanup complete: Workers signaled to stop and signals disconnected.")
 
 
 class JobWorker(QtCore.QThread):
@@ -400,9 +422,7 @@ class JobWorker(QtCore.QThread):
             max_workers = 1
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_studio = {
-                executor.submit(self.scraper.fetch_jobs, studio): studio for studio in self.studios
-            }
+            future_to_studio = {executor.submit(self.scraper.fetch_jobs, studio): studio for studio in self.studios}
 
             for future in concurrent.futures.as_completed(future_to_studio):
                 if not self._is_running:
@@ -411,11 +431,15 @@ class JobWorker(QtCore.QThread):
                 studio = future_to_studio[future]
                 try:
                     jobs = future.result()
-                    self.jobs_ready.emit(studio.get("id"), jobs)
+                    # Check again after potentially long result() call
+                    if self._is_running:
+                        self.jobs_ready.emit(studio.get("id"), jobs)
                 except Exception as e:
-                    print(f"Error processing jobs for {studio.get('name', 'Unknown')}: {e}")
+                    if self._is_running:
+                        logger.error(f"Error processing jobs for {studio.get('name', 'Unknown')}: {e}")
 
-        self.finished.emit()
+        if self._is_running:
+            self.finished.emit()
 
     def stop(self):
         self._is_running = False

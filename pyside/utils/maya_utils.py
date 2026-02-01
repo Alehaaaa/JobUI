@@ -1,4 +1,11 @@
 try:
+    from ..core.logger import logger
+except (ImportError, ValueError):
+    import logging
+
+    logger = logging.getLogger("JobUI")
+
+try:
     import maya.OpenMayaUI as omui
 
     MAYA_AVAILABLE = True
@@ -33,6 +40,6 @@ def get_maya_main_window():
         if ptr:
             return wrapInstance(int(ptr), QtWidgets.QWidget)
     except Exception as e:
-        print(f"Error getting Maya main window: {e}")
+        logger.error(f"Error getting Maya main window: {e}")
 
     return None
