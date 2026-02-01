@@ -2,6 +2,7 @@ import json
 import os
 import urllib.request
 import ssl
+import hashlib
 from .logger import logger
 
 try:
@@ -167,6 +168,7 @@ class ConfigManager(QtCore.QObject):
     jobs_updated = QtCore.Signal(str, list)  # studio_id, date
     jobs_started = QtCore.Signal(str)  # studio_id
     studio_visibility_changed = QtCore.Signal(str, bool)  # studio_id, enabled
+    studios_visibility_changed = QtCore.Signal()  # For bulk changes
     studios_refreshed = QtCore.Signal()  # Emitted when studios are added/edited/removed
 
     def __init__(self, parent=None):
@@ -198,8 +200,23 @@ class ConfigManager(QtCore.QObject):
 
         self.scraper = JobScraper()
 
+        self._config_hash = None
         self.load_config()
         self.download_missing_logos()
+
+    def _get_file_hash(self, path):
+        """Calculates the MD5 hash of a file."""
+        if not path or not os.path.exists(path):
+            return None
+        try:
+            hasher = hashlib.md5()
+            with open(path, "rb") as f:
+                for chunk in iter(lambda: f.read(4096), b""):
+                    hasher.update(chunk)
+            return hasher.hexdigest()
+        except Exception as e:
+            logger.error(f"Error calculating hash for {path}: {e}")
+            return None
 
     def load_config(self):
         # Check local config first
@@ -227,8 +244,13 @@ class ConfigManager(QtCore.QObject):
                             studios_map[s["id"]] = s
                     self.studios = list(studios_map.values())
 
+                    # Update hash after successful read
+                    self._config_hash = self._get_file_hash(self.config_path)
+
                     if len(self.studios) != len(raw_studios):
                         self.save_config()
+
+                    self.studios_refreshed.emit()
 
                 except json.JSONDecodeError:
                     logger.error(f"Error decoding {self.config_path}")
@@ -239,6 +261,8 @@ class ConfigManager(QtCore.QObject):
     def save_config(self):
         with open(self.config_path, "w") as f:
             json.dump(self.studios, f, indent=4)
+        # Update hash after saving
+        self._config_hash = self._get_file_hash(self.config_path)
 
     def get_studios(self):
         return self.studios
@@ -259,6 +283,26 @@ class ConfigManager(QtCore.QObject):
 
         self.settings.setValue("disabled_studios", self.disabled_studios)
         self.studio_visibility_changed.emit(studio_id, enabled)
+
+    def enable_all_studios(self):
+        """Enables all studios."""
+        for studio in self.studios:
+            sid = studio.get("id")
+            if sid in self.disabled_studios:
+                self.disabled_studios.remove(sid)
+
+        self.settings.setValue("disabled_studios", self.disabled_studios)
+        self.studios_visibility_changed.emit()
+
+    def disable_all_studios(self):
+        """Disables all studios."""
+        for studio in self.studios:
+            sid = studio.get("id")
+            if sid not in self.disabled_studios:
+                self.disabled_studios.append(sid)
+
+        self.settings.setValue("disabled_studios", self.disabled_studios)
+        self.studios_visibility_changed.emit()
 
     def add_studio(self, studio_data):
         # Check if exists and remove first
@@ -356,9 +400,23 @@ class ConfigManager(QtCore.QObject):
     # --- Job Fetching ---
 
     def fetch_all_jobs(self):
+        # Check for config updates before refetching everything
+        current_hash = self._get_file_hash(self.config_path)
+        if current_hash != self._config_hash:
+            logger.info("Config file change detected via MD5. Reloading studios...")
+            self.load_config()
+            self.download_missing_logos()
+
         self.start_job_worker(self.studios)
 
     def fetch_studio_jobs(self, studio_data):
+        # Check for config updates before refetching
+        current_hash = self._get_file_hash(self.config_path)
+        if current_hash != self._config_hash:
+            logger.info("Config file change detected via MD5. Reloading studios...")
+            self.load_config()
+            self.download_missing_logos()
+
         self.start_job_worker([studio_data])
 
     def start_job_worker(self, studios):

@@ -60,10 +60,12 @@ class JobWidget(QtWidgets.QFrame):
 
         # Location (Cleaned)
         raw_loc = job_data.get("location", "")
-        if "," in raw_loc:
+        if raw_loc and "," in raw_loc:
             clean_loc = raw_loc.split(",")[0].strip()
-        else:
+        elif raw_loc:
             clean_loc = raw_loc.strip()
+        else:
+            clean_loc = ""
 
         self.location_label = QtWidgets.QLabel(clean_loc)
         self.location_label.setWordWrap(True)
@@ -112,7 +114,7 @@ class StudioWidget(QtWidgets.QFrame):
         # Outline / Style
         self.setStyleSheet(STUDIO_WIDGET_STYLE)
 
-        self.setFixedSize(280, 400)  # Fixed Card Size for Grid
+        self.setFixedSize(260, 220)  # Fixed Card Size for Grid
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
@@ -197,7 +199,7 @@ class StudioWidget(QtWidgets.QFrame):
         self.config_manager.jobs_started.connect(self.on_jobs_started)
 
     def open_careers_page(self):
-        url = self.studio_data.get("careers_url") or self.studio_data.get("website")
+        url = self.studio_data.get("website") or self.studio_data.get("careers_url")
         if url:
             QtGui.QDesktopServices.openUrl(QtCore.QUrl(str(url)))
 
@@ -257,12 +259,14 @@ class StudioWidget(QtWidgets.QFrame):
         if sid == self.studio_data.get("id"):
             self.refresh_btn.hide()
             self.spinner.show()
+            self.scroll_area.setEnabled(False)
 
     def on_jobs_updated(self, sid, jobs):
         if sid == self.studio_data.get("id"):
             self.update_jobs()
             self.spinner.hide()
             self.refresh_btn.show()
+            self.scroll_area.setEnabled(True)
 
     def update_jobs(self):
         # Clear existing
@@ -349,6 +353,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         # Load settings
         self.config_manager = ConfigManager()
         self.studio_widgets = []
+        self.menu_studio_actions = {}
 
         # Filter: On by default
         val = self.settings.value("only_show_with_jobs")
@@ -367,6 +372,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         self.refresh_studios_list()
 
         self.config_manager.studio_visibility_changed.connect(self.on_studio_visibility_changed)
+        self.config_manager.studios_visibility_changed.connect(self._do_search)
         self.config_manager.studios_refreshed.connect(self.refresh_studios_list)
         self.config_manager.jobs_updated.connect(self._on_jobs_updated_signal)
 
@@ -395,6 +401,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
 
         # Search Box
         self.search_input = QtWidgets.QLineEdit()
+        self.search_input.setClearButtonEnabled(True)
         self.search_input.setPlaceholderText("Filter jobs (Text or Regex)...")
         self.search_input.textChanged.connect(self.on_search_changed)
         top_bar.addWidget(self.search_input)
@@ -473,6 +480,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
     def populate_studios_menu(self):
         try:
             self.studios_menu.clear()
+            self.menu_studio_actions = {}
         except RuntimeError:
             return
 
@@ -495,6 +503,18 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
 
             act.triggered.connect(make_handler(sid))
             self.studios_menu.addAction(act)
+            self.menu_studio_actions[sid] = act
+
+        if sorted_studios:
+            self.studios_menu.addSeparator()
+            self.studios_menu.addAction("Enable All", self.config_manager.enable_all_studios)
+            self.studios_menu.addAction("Disable All", self.config_manager.disable_all_studios)
+
+    def update_studios_menu_checks(self):
+        """Updates the checked state of studio actions in the menu."""
+        for sid, act in self.menu_studio_actions.items():
+            if isValid(act):
+                act.setChecked(self.config_manager.is_studio_enabled(sid))
 
     def toggle_only_show_with_jobs(self, checked):
         self._only_show_with_jobs = checked
@@ -515,10 +535,22 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         for sw in self.studio_widgets:
             if sw.studio_data.get("id") == studio_id:
                 sw.setVisible(enabled)
-                # Invalidate and activate layout to trigger repositioning
-                self.studios_layout.invalidate()
-                self.studios_layout.activate()
+                self._do_search()
                 return
+
+    def _update_placeholders(self):
+        """Updates the visibility of empty state placeholders."""
+        studios = self.config_manager.get_studios()
+        num_studios = len(studios)
+        has_enabled = any(self.config_manager.is_studio_enabled(s.get("id")) for s in studios)
+
+        self.lbl_no_studios_setup.setVisible(num_studios == 0)
+        self.lbl_no_studios_enabled.setVisible(num_studios > 0 and not has_enabled)
+
+        if self.lbl_no_studios_setup.isVisible():
+            self.studios_layout.addWidget(self.lbl_no_studios_setup)
+        if self.lbl_no_studios_enabled.isVisible():
+            self.studios_layout.addWidget(self.lbl_no_studios_enabled)
 
     def refresh_studios_list(self):
         # Helper to clear layout widgets
@@ -541,18 +573,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
                 sw.hide()
 
         self._do_search()
-
-        # Update placeholders for refresh
-        num_studios = len(studios)
-        has_enabled = any(self.config_manager.is_studio_enabled(s.get("id")) for s in studios)
-
-        self.lbl_no_studios_setup.setVisible(num_studios == 0)
-        self.lbl_no_studios_enabled.setVisible(num_studios > 0 and not has_enabled)
-
-        if self.lbl_no_studios_setup.isVisible():
-            self.studios_layout.addWidget(self.lbl_no_studios_setup)
-        if self.lbl_no_studios_enabled.isVisible():
-            self.studios_layout.addWidget(self.lbl_no_studios_enabled)
+        self._update_placeholders()
 
         logger.info(f"Loaded {len(studios)} studios.")
 
@@ -605,6 +626,9 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         self.lbl_no_matches.setVisible(enabled_count > 0 and visible_count == 0)
         if self.lbl_no_matches.isVisible():
             self.studios_layout.addWidget(self.lbl_no_matches)
+
+        self._update_placeholders()
+        self.update_studios_menu_checks()
 
         self.studios_layout.invalidate()
         self.studios_layout.activate()
@@ -710,9 +734,9 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
 
     def _cleanup(self):
         # Stop timers
-        if hasattr(self, "search_timer") and self.search_timer.isRunning():
+        if hasattr(self, "search_timer") and self.search_timer.isActive():
             self.search_timer.stop()
-        if hasattr(self, "save_search_timer") and self.save_search_timer.isRunning():
+        if hasattr(self, "save_search_timer") and self.save_search_timer.isActive():
             self.save_search_timer.stop()
 
         if self.config_manager:

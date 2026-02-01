@@ -1,11 +1,9 @@
-from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
-import json
 import urllib.parse
 import ssl
 from .logger import logger
-
+from .extractor import extract_json, extract_html, extract_items_html
 import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -25,513 +23,154 @@ class JobScraper:
         )
 
     def fetch_jobs(self, studio):
-        strategy = studio.get("scraping_strategy")
-        if not strategy:
-            return []
+        scraping = studio.get("scraping", {})
+        strategy = scraping.get("strategy")
 
-        method_name = f"fetch_{strategy}"
-        if hasattr(self, method_name):
+        if strategy == "json":
             try:
-                return getattr(self, method_name)(studio)
+                return self.fetch_json(studio)
             except Exception as e:
-                logger.error(f"Error fetching jobs for {studio.get('name')}: {e}")
+                logger.error(f"Error fetching {studio.get('id')} (JSON): {e}")
+                return []
+        elif strategy == "html":
+            try:
+                return self.fetch_html(studio)
+            except Exception as e:
+                logger.error(f"Error fetching {studio.get('id')} (HTML): {e}")
                 return []
         else:
-            logger.warning(f"Strategy {strategy} not implemented")
+            logger.warning(f"No valid strategy for {studio.get('id')}: {strategy}")
             return []
 
-    # --- Strategy Implementations ---
-
-    def fetch_netflix_json(self, studio):
+    def fetch_json(self, studio):
         careers_url = studio.get("careers_url")
-        # studio["careers_url"] is base API url
-        # Parameters: domain=netflix.com, num=100, sort_by=relevance, Teams=[...]
+        scraping = studio.get("scraping", {})
 
-        params = {
-            "domain": "netflix.com",
-            "num": 100,  # Fetch more at once
-            "sort_by": "relevance",
-            "Teams": [
-                "Animation",
-                "Feature Animation - Art",
-                "Feature Animation - Editorial + Post",
-                "Feature Animation - Production Management",
-                "Feature Animation - Story",
-                "Feature Animation",
-            ],
-        }
+        method = scraping.get("method", "GET").upper()
+        params = scraping.get("params", {})
+        payload = scraping.get("payload")
+        headers = scraping.get("headers", {})
 
-        response = self.session.get(careers_url, params=params)
+        if method == "POST":
+            response = self.session.post(careers_url, json=payload, params=params, headers=headers)
+        else:
+            response = self.session.get(careers_url, params=params, headers=headers)
+
         response.raise_for_status()
         data = response.json()
 
-        jobs = []
-        for pos in data.get("positions", []):
-            loc = pos.get("location")
-            location = loc if loc else ""
-            title = pos.get("name", "Unknown")
-            link = pos.get("canonicalPositionUrl")
-            jobs.append({"title": title, "link": link, "location": location})
-
-        return jobs
-
-    def fetch_pixar_json(self, studio):
-        url = studio.get("careers_url")
-        payload = {"appliedFacets": {}, "limit": 20, "searchText": ""}
-        headers = {"Content-Type": "application/json"}
-
-        response = self.session.post(url, json=payload, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-
-        website_base = studio.get("website")
-
-        jobs = []
-        for post in data.get("jobPostings", []):
-            title = post.get("title")
-            external_path = post.get("externalPath")
-            link = f"{website_base}{external_path}"
-            jobs.append({"title": title, "link": link, "location": ""})
-
-        return jobs
-
-    def fetch_dreamworks_json(self, studio):
-        url = studio.get("careers_url")
-        try:
-            response = self.session.get(url)
-            response.raise_for_status()
-            data = response.json()
-        except json.JSONDecodeError:
+        items = extract_json(data, scraping.get("path", ""), default=[])
+        if not items:
             return []
+        if not isinstance(items, list):
+            items = [items]
 
+        # Filter
+        filter_cfg = scraping.get("filter")
+        if filter_cfg:
+            key = filter_cfg.get("key")
+            sw = filter_cfg.get("startswith")
+            if key and sw:
+                items = [it for it in items if str(extract_json(it, key, "")).startswith(sw)]
+
+        mapping = scraping.get("map", {})
         jobs = []
+        for item in items:
 
-        if data and isinstance(data, list) and len(data) > 0:
-            rows = data[0].get("rows", [])
-            for row in rows:
-                title = row.get("title")
-                # Clean HTML entities from title
-                title = BeautifulSoup(title, "html.parser").get_text()
-                link = row.get("field_detailurl")
-                location = row.get("field_location", "")
-                location = BeautifulSoup(location, "html.parser").get_text()
+            def get_val(m, default=""):
+                if isinstance(m, dict):
+                    path = m.get("path")
+                    prefix = m.get("prefix", "")
+                    suffix = m.get("suffix", "")
+                    val = extract_json(item, path, default)
+                    if val and val != default:
+                        return f"{prefix}{val}{suffix}"
+                    return str(val if val is not None else default)
+                val = extract_json(item, m, default)
+                return str(val if val is not None else default)
 
-                jobs.append({"title": title, "link": link, "location": location})
+            title = get_val(mapping.get("title", "title"), "Unknown")
+            link = get_val(mapping.get("link", "link"), "")
+            location = get_val(mapping.get("location", "location"), "")
 
-        return jobs
+            # Cleanup
+            if title:
+                title = BeautifulSoup(title, "html.parser").get_text(strip=True)
+            if location:
+                location = BeautifulSoup(location, "html.parser").get_text(strip=True)
 
-    def fetch_disney_html(self, studio):
-        url = studio.get("careers_url")
-        response = self.session.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        jobs = []
-
-        for row in soup.select("tr"):
-            if not row.select_one("span.job-location"):
-                continue
-
-            title_elem = row.select_one("h2")
-            link_elem = row.select_one("a")
-            loc_elem = row.select_one("span.job-location")
-
-            if title_elem and link_elem:
-                title = title_elem.get_text(strip=True)
-                href = link_elem.get("href")
-                location = loc_elem.get_text(strip=True) if loc_elem else ""
-
-                # Resolve relative URL
-                full_link = urllib.parse.urljoin(studio.get("website"), href)
-                jobs.append({"title": title, "link": full_link, "location": location})
-
-        return jobs
-
-    def fetch_lever_json(self, studio):
-        url = studio.get("careers_url")
-        response = self.session.get(url)
-        data = response.json()
-
-        jobs = []
-        for post in data:
-            title = post.get("text")
-            link = post.get("hostedUrl")
-            loc = post.get("categories", {}).get("location", "")
-            jobs.append({"title": title, "link": link, "location": loc})
-        return jobs
-
-    def fetch_bamboohr_json(self, studio):
-        base_url = studio.get("careers_url")
-        url = f"{base_url}/careers/list"
-        response = self.session.get(url)
-        data = response.json()
-
-        jobs = []
-        result = data.get("result", [])
-        for post in result:
-            title = post.get("jobOpeningName")
-            pid = post.get("id")
-
-            loc_obj = post.get("location", {})
-            city = loc_obj.get("city") or ""
-            state = loc_obj.get("state") or ""
-            location = f"{city}, {state}".strip(", ")
-
-            # Construct link using website preference or base URL
-            website = studio.get("website") or base_url
-            link = f"{website}/careers/{pid}"
+            if link and not link.startswith("http"):
+                base = studio.get("website") or careers_url
+                link = urllib.parse.urljoin(base, link)
 
             jobs.append({"title": title, "link": link, "location": location})
 
         return jobs
 
-    def fetch_smartrecruiters_json(self, studio):
+    def fetch_html(self, studio):
         url = studio.get("careers_url")
+        scraping = studio.get("scraping", {})
+
         response = self.session.get(url)
-        data = response.json()
-
-        content = data.get("content", [])
-        jobs = []
-        website = studio.get("website")
-
-        for post in content:
-            title = post.get("name")
-            pid = post.get("id")
-            loc = post.get("location", {}).get("fullLocation", "")
-
-            link = f"{website}/{pid}"
-            jobs.append({"title": title, "link": link, "location": loc})
-
-        return jobs
-
-    def fetch_dneg_html(self, studio):
-        url = studio.get("careers_url")
-        response = self.session.get(url)
+        response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
 
-        jobs = []
-        for row in soup.select("li.mb1"):
-            title_elem = row.select_one("p")
-            link_elem = row.select_one("a")
-            loc_elem = row.select_one("div.jv-job-list-location")
-
-            if title_elem and link_elem:
-                title = title_elem.get_text(strip=True)
-                href = link_elem.get("href")
-
-                location = ""
-                if loc_elem:
-                    location = " ".join(loc_elem.get_text().split())
-
-                full_link = f"https://jobs.jobvite.com{href}"
-                jobs.append({"title": title, "link": full_link, "location": location})
-
-        return jobs
-
-    def fetch_greenhouse_html(self, studio):
-        url = studio.get("careers_url")
-        response = self.session.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        jobs = []
-        # tr.job-post
-        for row in soup.select("tr.job-post"):
-            title_elem = row.select_one("p")
-            # Fallback to 'a' tag for title if 'p' is missing
-            if not title_elem:
-                # Try finding 'a' as title if p missing
-                link_elem = row.select_one("a")
-                if link_elem:
-                    title = link_elem.get_text(strip=True)
-                    href = link_elem.get("href")
-                    loc_elem = row.select_one("span.location")
-                    location = loc_elem.get_text(strip=True) if loc_elem else ""
-
-                    full_link = urllib.parse.urljoin("https://boards.greenhouse.io", href)
-                    if not href.startswith("http"):
-                        # Greenhouse usually absolute but just in case
-                        pass
-                    else:
-                        full_link = href
-
-                    jobs.append({"title": title, "link": full_link, "location": location})
-                continue
-
-            link_elem = row.select_one("a")
-            loc_elem = row.select_one("p.body__secondary")
-
-            if title_elem and link_elem:
-                title = title_elem.get_text(strip=True)
-                href = link_elem.get("href")
-                location = loc_elem.get_text(strip=True) if loc_elem else ""
-
-                full_link = href
-                if not href.startswith("http"):
-                    # Basic greenhouse
-                    full_link = urllib.parse.urljoin(url, href)
-
-                jobs.append({"title": title, "link": full_link, "location": location})
-
-        return jobs
-
-    def fetch_ranchito_html(self, studio):
-        url = studio.get("careers_url")
-        response = self.session.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        jobs = []
-        for li in soup.select("li"):
-            # Manual check for elements since BS4 :has support varies
-            if not li.select_one("h5.post-date"):
-                continue
-
-            h2 = li.select_one("h2")
-            a = li.select_one("a")
-            h5 = li.select_one("h5.post-date")
-
-            if h2 and a:
-                title = h2.get_text(strip=True)
-                href = a.get("href")
-                location = h5.get_text(strip=True) if h5 else ""
-
-                link = urllib.parse.urljoin(studio.get("website"), href)
-                jobs.append({"title": title, "link": link, "location": location})
-
-        return jobs
-
-    def fetch_mikros_html(self, studio):
-        url = studio.get("careers_url")
-        response = self.session.get(url)
-        data = response.json()
-
-        content = data.get("content", [])
-        jobs = []
-        website = studio.get("website")
-
-        for post in content:
-            label = post.get("department", {}).get("label", "")
-            if not label or not label.startswith("Mikros Animation"):
-                continue
-
-            title = post.get("name")
-            pid = post.get("id")
-            loc = post.get("location", {}).get("fullLocation", "")
-
-            link = f"{website}/{pid}"
-            jobs.append({"title": title, "link": link, "location": loc})
-
-        return jobs
-
-    def fetch_fortiche_html(self, studio):
-        url = studio.get("careers_url")
-        response = self.session.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        jobs = []
-        for elem in soup.select(".jet-engine-listing-overlay-wrap"):
-            h3 = elem.select_one("h3")
-            if not h3:
-                continue
-
-            title = h3.get_text(strip=True)
-            link = elem.get("data-url")
-
-            jobs.append({"title": title, "link": link, "location": ""})
-
-        return jobs
-
-    def fetch_steamroller_html(self, studio):
-        url = studio.get("careers_url")
-        response = self.session.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        jobs = []
-        for elem in soup.select("div.css-aapqz6"):
-            a = elem.select_one("a[href]")
-            loc_span = elem.select_one("span[data-icon='LOCATION_OUTLINE']")
-            loc_p = loc_span.find_next("p") if loc_span else None
-
-            if a:
-                title = a.get_text(strip=True)
-                href = a.get("href")
-                location = loc_p.get_text(strip=True) if loc_p else ""
-
-                if "/jobs/" in href:
-                    full_link = urllib.parse.urljoin("https://ats.rippling.com", href)
-                    jobs.append({"title": title, "link": full_link, "location": location})
-
-        return jobs
-
-    def fetch_framestore_html(self, studio):
-        url = studio.get("careers_url")
-        response = self.session.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        jobs = []
-        seen = set()
-
-        for a in soup.select("a[href^='/o/']"):
-            href = a.get("href")
-            if href in seen:
-                continue
-
-            title = a.get_text(strip=True)
-            if title.lower() == "view job":
-                continue
-
-            seen.add(href)
-
-            row = a.find_parent("div")
-
-            location = ""
-            if row:
-                city = row.select_one(".custom-css-style-job-location-city")
-                country = row.select_one(".custom-css-style-job-location-country")
-                if city and country:
-                    location = f"{city.get_text(strip=True)}, {country.get_text(strip=True)}"
-
-            full_link = urllib.parse.urljoin(url, href)
-            jobs.append({"title": title, "link": full_link, "location": location})
-
-        return jobs
-
-    def fetch_giant_html(self, studio):
-        url = studio.get("careers_url")
-        response = self.session.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        jobs = []
-        for elem in soup.select(".g-careers .row .col-12"):
-            h4 = elem.select_one("h4")
-            span = elem.select_one("span")
-            a = elem.select_one("a")
-
-            if h4 and span and a:
-                title = h4.get_text(strip=True)
-                location = span.get_text(strip=True)
-                href = a.get("href")
-
-                jobs.append({"title": title, "link": href, "location": location})
-
-        return jobs
-
-    def fetch_skydance_html(self, studio):
-        url = studio.get("careers_url")
-        response = self.session.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        jobs = []
-
-        for section in soup.select("div[id^='skydance_animation'].mb-60"):
-            for element in section.select(".mb-40"):
-                title_elem = element.select_one(".treatment-title-small")
-                link_elem = element.select_one("a")
-                loc_elem = element.select_one(".treatment-button")
-
-                if title_elem and link_elem:
-                    title = title_elem.get_text(strip=True)
-                    href = link_elem.get("href")
-                    location = loc_elem.get_text(strip=True) if loc_elem else ""
-
-                    full_link = urllib.parse.urljoin(studio.get("website"), href)
-                    jobs.append({"title": title, "link": full_link, "location": location})
-
-        return jobs
-
-    def fetch_illusorium_html(self, studio):
-        url = studio.get("careers_url")
-        response = self.session.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        jobs = []
-        seen = set()
-
-        for container in soup.select("div.row-container"):
-            btn_container = container.select_one("span.btn-container")
-            if not btn_container:
-                continue
-
-            a = btn_container.select_one("a[href]")
-            if not a:
-                continue
-
-            href = a.get("href")
-            if "/job_posting/" not in href:
-                continue
-
-            if href in seen:
-                continue
-            seen.add(href)
-
-            # Title finding
-            text_col = container.select_one("div.uncode_text_column.text-lead")
-            title = "Title not found"
-            if text_col:
-                h4 = text_col.select_one("h4")
-                if h4:
-                    title = h4.get_text(strip=True)
-                else:
-                    p = text_col.select_one("p")
-                    if p:
-                        title = p.get_text(strip=True)
-
-            full_link = urllib.parse.urljoin(studio.get("website"), href)
-            jobs.append({"title": title, "link": full_link, "location": ""})
-
-        return jobs
-
-    def fetch_littlezoo_html(self, studio):
-        url = studio.get("careers_url")
-        try:
-            response = self.session.get(url)
-            response.raise_for_status()
-        except requests.RequestException as e:
-            logger.error(f"Error fetching Little Zoo: {e}")
+        container_sel = scraping.get("container")
+        if not container_sel:
             return []
 
-        soup = BeautifulSoup(response.text, "html.parser")
+        items = extract_items_html(soup, container_sel)
+        mapping = scraping.get("map", {})
+        title_map = mapping.get("title", "title")
+        link_map = mapping.get("link", "a")
+        loc_map = mapping.get("location")
+
         jobs = []
-        location = "Montpelier, Vermont"
+        seen_links = set()
 
-        for h2 in soup.select("div.sqs-block.markdown-block .sqs-block-content h2"):
-            title = h2.get_text(" ", strip=True)
-            if not title:
+        for item in items:
+
+            def get_val(m, def_attr="text"):
+                if m is None or m == "":
+                    # If selector is empty, we still result in a string
+                    if m == "":
+                        # Special case: if mapping is empty string, extract from element itself
+                        val = extract_html(item, "", attr=def_attr, default="")
+                        return str(val if val is not None else "")
+                    return ""
+
+                if isinstance(m, dict):
+                    val = extract_html(item, m.get("selector"), attr=m.get("attr", def_attr), default="")
+                    return str(val if val is not None else "")
+
+                val = extract_html(item, m, attr=def_attr, default="")
+                return str(val if val is not None else "")
+
+            title = get_val(title_map, "text") or "Unknown"
+            title = title.rstrip(":")
+
+            # Skip generic labels
+            if title.lower() in ["view job", "details", "read more", "apply", "careers", "open positions"]:
                 continue
 
-            title = title.strip()
-            if title.endswith(":"):
-                title = title[:-1].strip()
+            link = get_val(link_map, "href")
+            location = get_val(loc_map, "text")
 
-            if title.lower() in {"careers", "open positions", "jobs", "apply"}:
+            if not link:
+                # If no link found, fallback to careers URL to at least show the job exists
+                link = url
+            else:
+                link = str(link)
+
+            if not link.startswith("http"):
+                link = urllib.parse.urljoin(studio.get("website") or url, link)
+
+            if link in seen_links and link != url:
                 continue
 
-            if title.upper() == "INTERNSHIPS":
-                block = h2.find_parent("div", class_="sqs-block")
-                block_text = block.get_text(" ", strip=True).lower() if block else ""
-                if "does not offer internships" in block_text:
-                    continue
+            if link != url:
+                seen_links.add(link)
 
-            markdown_block = h2.find_parent("div", class_="sqs-block")
-            apply_link = None
-
-            if markdown_block:
-                for sib in markdown_block.find_next_siblings("div", class_="sqs-block"):
-                    if sib.select_one(".markdown-block h2"):
-                        break
-
-                    a = sib.select_one("a.sqs-block-button-element")
-                    if a and a.get("href"):
-                        apply_link = urljoin(url, a["href"])
-                        break
-
-            if not apply_link:
-                apply_link = url
-
-            jobs.append(
-                {
-                    "title": title,
-                    "link": apply_link,
-                    "location": location,
-                }
-            )
+            jobs.append({"title": title, "link": link, "location": location})
 
         return jobs
