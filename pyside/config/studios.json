@@ -7,7 +7,7 @@
         "website": "https://jobs.disneycareers.com",
         "scraping": {
             "strategy": "html",
-            "container": "tr",
+            "container": "tbody tr",
             "map": {
                 "title": "h2",
                 "link": "a",
@@ -57,10 +57,9 @@
         "name": "El Ranchito",
         "logo_url": "https://barsvfx.com/wp-content/uploads/2023/10/El-Ranchito-Combination-Mark-Landscape-Black-RGB@2x-1.png",
         "careers_url": "https://elranchito.es/careers/open-positions/",
-        "website": "https://elranchito.es/careers/open-positions/",
         "scraping": {
             "strategy": "html",
-            "container": "li",
+            "container": "ul.posts.posts--jobs li",
             "map": {
                 "title": "h2",
                 "link": "a",
@@ -322,14 +321,13 @@
         "id": "illusorium",
         "name": "Illusorium",
         "logo_url": "https://illusoriumstudios.com/wp-content/uploads/2023/09/isotipo_ill_100x100_white.png",
-        "careers_url": "https://illusoriumstudios.com/careers/",
-        "website": "https://illusoriumstudios.com/careers/#jobs",
+        "careers_url": "https://illusoriumstudios.com/careers/#jobs",
         "scraping": {
             "strategy": "html",
-            "container": "div.row-container",
+            "container": "#row-unique-11 .vc_row.row-internal",
             "map": {
-                "title": "h4",
-                "link": "a[href*='/job_posting/']"
+                "title": ".uncode_text_column h4, .uncode_text_column p.factorial__headingFontFamily",
+                "link": ".btn-container a"
             }
         }
     },
@@ -338,13 +336,56 @@
         "name": "Little Zoo Studio",
         "logo_url": "https://images.squarespace-cdn.com/content/v1/5bb12626c46f6d5eaedb2e5f/1562618648077-YR20L25ATBOFUVYLECMN/LZ_Website_Horizontal_LZ_Trans.png?format=300w",
         "careers_url": "https://www.littlezoostudio.com/careers",
-        "website": "https://www.littlezoostudio.com/",
         "scraping": {
             "strategy": "html",
-            "container": "div.sqs-block.markdown-block",
+            "container": "div.sqs-block.markdown-block h2",
+            "map": {
+                "title": ""
+            }
+        }
+    },
+    {
+        "id": "twinpines",
+        "name": "Twin Pines",
+        "logo_url": "https://twinpines.es/templates/twinpines_two/images/logo.svg",
+        "careers_url": "https://twinpines.es/recruitment",
+        "scraping": {
+            "strategy": "html",
+            "container": "div.recruitment__list",
             "map": {
                 "title": "h2",
-                "link": "a.sqs-block-button-element"
+                "link": "a"
+            }
+        }
+    },
+    {
+        "id": "unitimage",
+        "name": "Unit Image",
+        "logo_url": "https://www.unit-image.fr/wp-content/themes/Impreza-child/img/loader.png",
+        "careers_url": "https://www.unit-image.fr/jobs/",
+        "scraping": {
+            "strategy": "html",
+            "container": "article.w-grid-item",
+            "map": {
+                "title": ".post_title",
+                "link": "a.w-grid-item-anchor"
+            }
+        }
+    },
+    {
+        "id": "milkvfx",
+        "name": "Milk VFX",
+        "logo_url": "https://www.milk-vfx.com/es/wp-content/themes/milk-vfx-chisel/dist/assets/images/milk-vfx.c1703df7.svg",
+        "careers_url": "https://www.milk-vfx.com/careers/?loc=UK",
+        "scraping": {
+            "strategy": "html",
+            "container": "div.c-careers__content a",
+            "map": {
+                "title": ".c-career__title",
+                "link": "",
+                "location": {
+                    "find_previous": "h2"
+                }
             }
         }
     }

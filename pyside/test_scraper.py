@@ -29,7 +29,7 @@ def test_studio(studio_id):
 
     print(f"Found {len(jobs)} jobs:")
     for i, job in enumerate(jobs[:10]):
-        print(f"{i + 1}. {job['title']} | {job['location']} | {job['link']}")
+        print(f"{i + 1}. {job['title']} | {' '.join(job['location'].split())} | {job['link']}")
 
     if len(jobs) > 10:
         print(f"... and {len(jobs) - 10} more")
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     #          fortiche, mikros, steamroller, giant, netflix, wildchild, flyingbark,
     #          rodeofx, framestore, skydance, illusorium, littlezoo
 
-    target_studio = "netflix"
+    target_studio = "milkvfx"
 
     if len(sys.argv) > 1:
         target_studio = sys.argv[1]

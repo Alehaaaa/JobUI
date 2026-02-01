@@ -140,6 +140,14 @@ class JobScraper:
                     return ""
 
                 if isinstance(m, dict):
+                    if "find_previous" in m:
+                        node = item.find_previous(m["find_previous"])
+                        if node:
+                            if m.get("attr") == "html":
+                                return str(node)
+                            return node.get_text(separator=" ", strip=True)
+                        return ""
+
                     val = extract_html(item, m.get("selector"), attr=m.get("attr", def_attr), default="")
                     return str(val if val is not None else "")
 
@@ -155,6 +163,8 @@ class JobScraper:
 
             link = get_val(link_map, "href")
             location = get_val(loc_map, "text")
+            if location:
+                location = " ".join(location.split())
 
             if not link:
                 # If no link found, fallback to careers URL to at least show the job exists

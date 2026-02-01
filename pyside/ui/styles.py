@@ -4,13 +4,13 @@ JOB_WIDGET_STYLE = """
         border-radius: 4px;
         background-color: rgba(255, 255, 255, 0.03);
     }
-    QPushButton {
+    #job_link_btn {
         border: 1px solid #555;
         background-color: transparent;
         border-radius: 3px;
         padding: 2px;
     }
-    QPushButton:hover {
+    #job_link_btn:hover {
         background-color: #444;
         border-color: #777;
     }
@@ -40,6 +40,11 @@ GLOBAL_STYLE = """
         border: 1px solid #444;
         color: #ddd;
         padding: 4px;
+    }
+    QToolTip {
+        background-color: #333;
+        color: #eee;
+        border: 1px solid #555;
     }
 """
 

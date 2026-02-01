@@ -75,11 +75,15 @@ class LogoWorker(QtCore.QThread):
                 return
 
             # 1. Make White (preserve alpha)
-            image = img.convertToFormat(QtGui.QImage.Format_ARGB32_Premultiplied)
-            painter = QtGui.QPainter(image)
-            painter.setCompositionMode(QtGui.QPainter.CompositionMode_SourceIn)
-            painter.fillRect(image.rect(), QtGui.QColor("white"))
-            painter.end()
+            image = img.convertToFormat(QtGui.QImage.Format_ARGB32)
+            for y in range(image.height()):
+                for x in range(image.width()):
+                    pixel = image.pixelColor(x, y)
+                    if pixel.alpha() > 0:
+                        pixel.setRed(255)
+                        pixel.setGreen(255)
+                        pixel.setBlue(255)
+                        image.setPixelColor(x, y, pixel)
 
             # 2. Trim Padding
             if not self._is_running:

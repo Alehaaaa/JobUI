@@ -80,6 +80,7 @@ class JobWidget(QtWidgets.QFrame):
         bottom_layout.addStretch()
 
         self.link_btn = QtWidgets.QPushButton()
+        self.link_btn.setObjectName("job_link_btn")
         self.link_btn.setIcon(QtWidgets.QApplication.style().standardIcon(QtWidgets.QStyle.SP_ArrowRight))
         self.link_btn.setFlat(False)
         self.link_btn.setToolTip("Open Job Link")
@@ -134,7 +135,7 @@ class StudioWidget(QtWidgets.QFrame):
         self.logo_label.setAlignment(QtCore.Qt.AlignCenter)
         self.logo_label.setFixedSize(100, 40)
         self.logo_label.clicked.connect(self.open_careers_page)
-        self.logo_label.setToolTip("Open Careers Page")
+        self.logo_label.setToolTip("Open %s Careers Page" % studio_data.get("name"))
 
         self.name_label = ClickableLabel()
         self.name_label.setStyleSheet("font-weight: bold; border: none;")
@@ -142,7 +143,7 @@ class StudioWidget(QtWidgets.QFrame):
         self.name_label.setWordWrap(True)
         self.name_label.setText(studio_data.get("name") or studio_data.get("id"))
         self.name_label.clicked.connect(self.open_careers_page)
-        self.name_label.setToolTip("Open Careers Page")
+        self.name_label.setToolTip("Open %s Careers Page" % studio_data.get("name"))
 
         header_layout.addWidget(self.logo_label)
         header_layout.addWidget(self.name_label)
