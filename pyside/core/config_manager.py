@@ -238,7 +238,7 @@ class ConfigManager(QtCore.QObject):
                 logger.error(f"Config file not found at {self.config_path} or {mac_config}")
 
         if os.path.exists(self.config_path):
-            with open(self.config_path, "r") as f:
+            with open(self.config_path, "r", encoding="utf-8") as f:
                 try:
                     raw_studios = json.load(f)
                     # Deduplicate: Keep the last occurrence of each ID
@@ -263,8 +263,8 @@ class ConfigManager(QtCore.QObject):
             self.studios = []
 
     def save_config(self):
-        with open(self.config_path, "w") as f:
-            json.dump(self.studios, f, indent=4)
+        with open(self.config_path, "w", encoding="utf-8") as f:
+            json.dump(self.studios, f, indent=4, ensure_ascii=False)
         # Update hash after saving
         self._config_hash = self._get_file_hash(self.config_path)
 

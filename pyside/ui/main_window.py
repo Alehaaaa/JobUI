@@ -42,7 +42,7 @@ class JobWidget(QtWidgets.QFrame):
         self.job_data = job_data
 
         # Min properties to wrap content snugly
-        self.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
 
         # Native borders
         self.setFrameStyle(QtWidgets.QFrame.Box | QtWidgets.QFrame.Plain)
@@ -109,13 +109,13 @@ class StudioWidget(QtWidgets.QFrame):
         self.no_match_label = None
 
         self.setObjectName("studio_widget")
-        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.show_context_menu)
 
         # Outline / Style
         self.setStyleSheet(STUDIO_WIDGET_STYLE)
 
-        self.setFixedSize(260, 220)  # Fixed Card Size for Grid
+        self.setFixedWidth(260)  # Fixed width for grid, dynamic height
+        self.setMinimumHeight(220)
+        self.setMaximumHeight(220)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
@@ -132,21 +132,16 @@ class StudioWidget(QtWidgets.QFrame):
 
         # Logo/Name (Centered)
         self.logo_label = ClickableLabel()
+        self.logo_label.setStyleSheet("font-weight: bold; border: none;")
         self.logo_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.logo_label.setFixedSize(100, 40)
+        self.logo_label.setFixedSize(120, 35)
+        self.logo_label.setWordWrap(True)
         self.logo_label.clicked.connect(self.open_careers_page)
         self.logo_label.setToolTip("Open %s Careers Page" % studio_data.get("name"))
-
-        self.name_label = ClickableLabel()
-        self.name_label.setStyleSheet("font-weight: bold; border: none;")
-        self.name_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.name_label.setWordWrap(True)
-        self.name_label.setText(studio_data.get("name") or studio_data.get("id"))
-        self.name_label.clicked.connect(self.open_careers_page)
-        self.name_label.setToolTip("Open %s Careers Page" % studio_data.get("name"))
+        self.logo_label.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.logo_label.customContextMenuRequested.connect(self.show_context_menu)
 
         header_layout.addWidget(self.logo_label)
-        header_layout.addWidget(self.name_label)
         header_layout.addStretch()
 
         # Controls container (Refresh/Spinner)
@@ -219,13 +214,13 @@ class StudioWidget(QtWidgets.QFrame):
         act_edit = menu.addAction("Edit Studio...")
         act_edit.triggered.connect(self.open_edit_dialog)
 
-        menu.exec_(self.mapToGlobal(pos))
+        menu.exec_(self.logo_label.mapToGlobal(pos))
 
     def open_edit_dialog(self):
-        from .edit_studio_dialog import EditStudioDialog
+        from .studio_dialog import StudioDialog
 
-        dialog = EditStudioDialog(self.studio_data, self)
-        dialog.studio_edited.connect(self.config_manager.update_studio)
+        dialog = StudioDialog(self.studio_data, self)
+        dialog.saved.connect(self.config_manager.update_studio)
         dialog.exec_()
 
     def load_logo(self):
@@ -236,14 +231,12 @@ class StudioWidget(QtWidgets.QFrame):
             pix = QtGui.QPixmap(path)
             if not pix.isNull():
                 self.logo_label.setPixmap(
-                    pix.scaled(100, 40, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+                    pix.scaled(110, 30, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
                 )
-                self.logo_label.show()
-                self.name_label.hide()
                 return
 
-        self.logo_label.hide()
-        self.name_label.show()
+        # Fallback to name text
+        self.logo_label.setText(self.studio_data.get("name") or self.studio_data.get("id"))
 
     def fetch_jobs(self):
         self.config_manager.fetch_studio_jobs(self.studio_data)
@@ -493,7 +486,9 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
             sid = studio.get("id")
             name = studio.get("name", sid)
 
-            act = QAction(name, self)
+            # Escape ampersands for Qt menu mnemonics
+            display_name = name.replace("&", "&&")
+            act = QAction(display_name, self)
             act.setCheckable(True)
             is_enabled = self.config_manager.is_studio_enabled(sid)
             act.setChecked(is_enabled)
@@ -523,10 +518,10 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         self._do_search()
 
     def open_add_studio_dialog(self):
-        from .add_studio_dialog import AddStudioDialog
+        from .studio_dialog import StudioDialog
 
-        dialog = AddStudioDialog(self)
-        dialog.studio_added.connect(self.on_studio_added)
+        dialog = StudioDialog(parent=self)
+        dialog.saved.connect(self.config_manager.add_studio)
         dialog.exec_()
 
     def on_studio_added(self, studio_data):

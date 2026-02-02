@@ -40,10 +40,20 @@ def _tokenize(path: str):
 def extract_json(data: Any, path: str, default: Any = None) -> Any:
     """
     Extract values from nested dict/list structures using a simple path string.
+    Supports fallback paths separated by commas: "location.city, atsLocation.city"
     Examples: "items[*].id", "data.results[0].name"
     """
     if not path:
         return data
+
+    # Support fallback paths: "location.city, atsLocation.city"
+    if "," in path:
+        paths = [p.strip() for p in path.split(",")]
+        for p in paths:
+            val = extract_json(data, p, default=None)
+            if val is not None and val != "" and val != []:
+                return val
+        return default
 
     try:
         tokens = _tokenize(path)
@@ -96,14 +106,53 @@ def extract_json(data: Any, path: str, default: Any = None) -> Any:
 # --- HTML Extraction Logic ---
 
 
-def extract_html(soup_or_elem, selector, attr="text", default=None):
+def extract_html(soup_or_elem, selector, attr="text", default=None, index=None):
     """
     Extracts data from a BeautifulSoup object or Tag using CSS selectors.
     """
     if not selector:
         elem = soup_or_elem
     else:
-        elem = soup_or_elem.select_one(selector)
+        if index is not None:
+            elems = soup_or_elem.select(selector)
+
+            # Handle slice string like "1:"
+            if isinstance(index, str) and ":" in index:
+                try:
+                    parts = index.split(":")
+                    start = int(parts[0]) if parts[0] else None
+                    end = int(parts[1]) if parts[1] else None
+                    subset = elems[slice(start, end)]
+                    if not subset:
+                        return default
+
+                    results = []
+                    for e in subset:
+                        text = ""
+                        if attr == "text":
+                            text = e.get_text(separator=" ", strip=True)
+                        elif attr == "html":
+                            text = str(e)
+                        else:
+                            val = e.get(attr)
+                            if val:
+                                text = " ".join(val) if isinstance(val, list) else str(val)
+
+                        # Skip if it's just a separator or empty
+                        clean_text = text.strip("·•|* ").strip()
+                        if clean_text:
+                            results.append(text)
+
+                    return " ".join(results)
+                except Exception:
+                    return default
+
+            try:
+                elem = elems[int(index)]
+            except (IndexError, TypeError, ValueError):
+                return default
+        else:
+            elem = soup_or_elem.select_one(selector)
 
     if not elem:
         return default

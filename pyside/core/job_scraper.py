@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import urllib.parse
 import ssl
+import re
 from .logger import logger
 from .extractor import extract_json, extract_html, extract_items_html
 import urllib3
@@ -108,10 +109,19 @@ class JobScraper:
         return jobs
 
     def fetch_html(self, studio):
-        url = studio.get("careers_url")
+        careers_url = studio.get("careers_url")
         scraping = studio.get("scraping", {})
 
-        response = self.session.get(url)
+        method = scraping.get("method", "GET").upper()
+        params = scraping.get("params", {})
+        payload = scraping.get("payload")
+        headers = scraping.get("headers", {})
+
+        if method == "POST":
+            response = self.session.post(careers_url, json=payload, params=params, headers=headers)
+        else:
+            response = self.session.get(careers_url, params=params, headers=headers)
+
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
 
@@ -148,8 +158,19 @@ class JobScraper:
                             return node.get_text(separator=" ", strip=True)
                         return ""
 
-                    val = extract_html(item, m.get("selector"), attr=m.get("attr", def_attr), default="")
-                    return str(val if val is not None else "")
+                    val = extract_html(
+                        item, m.get("selector"), attr=m.get("attr", def_attr), default="", index=m.get("index")
+                    )
+                    val = str(val if val is not None else "")
+
+                    regex = m.get("regex")
+                    if regex and val:
+                        match = re.search(regex, val)
+                        if match:
+                            val = match.group(0)
+                        else:
+                            val = ""
+                    return val
 
                 val = extract_html(item, m, attr=def_attr, default="")
                 return str(val if val is not None else "")
@@ -165,20 +186,52 @@ class JobScraper:
             location = get_val(loc_map, "text")
             if location:
                 location = " ".join(location.split())
+                location = location.strip("·•| ").strip()
+                # Remove spaces before commas/periods
+                location = re.sub(r"\s+([,.])", r"\1", location)
+
+                # Optional: Remove location from title if it's embedded
+                if mapping.get("remove_location_from_title") and title:
+                    # Try removing the full location first
+                    pattern = re.compile(re.escape(location), re.IGNORECASE)
+                    title = pattern.sub("", title)
+
+                    # Also try removing individual parts (for "London, UK" cases where only "London" is in title)
+                    if "," in location:
+                        parts = [p.strip() for p in location.split(",") if len(p.strip()) > 2]
+                        for p in parts:
+                            # Use word boundaries to avoid partial word removal
+                            p_pattern = re.compile(r"\b" + re.escape(p) + r"\b", re.IGNORECASE)
+                            title = p_pattern.sub("", title)
+
+                    # Remove empty parens/brackets that might be left over
+                    while True:
+                        new_title = re.sub(r"\(\s*\)|\[\s*\]", "", title)
+                        if new_title == title:
+                            break
+                        title = new_title
+
+            if title:
+                # Cleanup separators that might be left hanging
+                title = title.strip("·•| -").strip()
+                # Remove double separators
+                title = re.sub(r"\s*[-|•·]\s*[-|•·]\s*", " - ", title)
+                # Collapse extra spaces
+                title = " ".join(title.split())
 
             if not link:
                 # If no link found, fallback to careers URL to at least show the job exists
-                link = url
+                link = careers_url
             else:
                 link = str(link)
 
             if not link.startswith("http"):
-                link = urllib.parse.urljoin(studio.get("website") or url, link)
+                link = urllib.parse.urljoin(studio.get("website") or careers_url, link)
 
-            if link in seen_links and link != url:
+            if link in seen_links and link != careers_url:
                 continue
 
-            if link != url:
+            if link != careers_url:
                 seen_links.add(link)
 
             jobs.append({"title": title, "link": link, "location": location})

@@ -3,10 +3,36 @@
         "id": "disney",
         "name": "Walt Disney Animation",
         "logo_url": "https://upload.wikimedia.org/wikipedia/commons/8/8f/Disney_logo.png",
-        "careers_url": "https://jobs.disneycareers.com/search-jobs?acm=ALL^&alrpm=6252001-5332921^&ascf=[{%22key%22:%22custom_fields.IndustryCustomField%22,%22value%22:%22Walt+Disney+Animation+Studios%22}]",
+        "careers_url": "https://jobs.disneycareers.com/search-jobs",
         "website": "https://jobs.disneycareers.com",
         "scraping": {
             "strategy": "html",
+            "params": {
+                "acm": "ALL",
+                "alrpm": "6252001-5332921",
+                "ascf": "[{\"key\":\"custom_fields.IndustryCustomField\",\"value\":\"Walt Disney Animation Studios\"}]"
+            },
+            "container": "tbody tr",
+            "map": {
+                "title": "h2",
+                "link": "a",
+                "location": "span.job-location"
+            }
+        }
+    },
+    {
+        "id": "ilm",
+        "name": "Industrial Light & Magic",
+        "logo_url": "https://www.ilm.com/wp-content/uploads/2014/12/ilm_logo_nav_black.svg",
+        "careers_url": "https://jobs.disneycareers.com/search-jobs",
+        "website": "https://jobs.disneycareers.com",
+        "scraping": {
+            "strategy": "html",
+            "params": {
+                "acm": "ALL",
+                "alrpm": "6252001-5332921",
+                "ascf": "[{\"key\":\"custom_fields.IndustryCustomField\",\"value\":\"Industrial Light & Magic\"}]"
+            },
             "container": "tbody tr",
             "map": {
                 "title": "h2",
@@ -48,7 +74,8 @@
             "path": "jobPostings[*]",
             "map": {
                 "title": "title",
-                "link": "externalPath"
+                "link": "externalPath",
+                "location": "locationsText"
             }
         }
     },
@@ -181,7 +208,7 @@
             "map": {
                 "title": "a",
                 "link": "a",
-                "location": "p"
+                "location": "span[data-icon='LOCATION_OUTLINE'] + p"
             }
         }
     },
@@ -261,7 +288,7 @@
                     "path": "id",
                     "prefix": "https://flyingbark.bamboohr.com/careers/"
                 },
-                "location": "location.city"
+                "location": "location.city, atsLocation.city"
             }
         }
     },
@@ -291,13 +318,15 @@
         "careers_url": "https://framestore.recruitee.com",
         "scraping": {
             "strategy": "html",
-            "container": "a[href^='/o/']",
+            "container": "tr:has(a[href^='/o/'])",
             "map": {
-                "title": "",
+                "title": "a[href^='/o/']",
                 "link": {
-                    "selector": "",
+                    "selector": "a[href^='/o/']",
                     "attr": "href"
-                }
+                },
+                "location": ".custom-css-style-job-location",
+                "remove_location_from_title": true
             }
         }
     },
@@ -306,13 +335,16 @@
         "name": "Skydance",
         "logo_url": "https://upload.wikimedia.org/wikipedia/commons/6/60/Skydance_Animation_New_Logo.png",
         "careers_url": "https://skydance.com/job-listings/",
-        "website": "https://skydance.com",
         "scraping": {
             "strategy": "html",
-            "container": "div[id^='skydance_animation'].mb-60 .mb-40",
+            "container": "div.mb-40:has(.treatment-title-small)",
             "map": {
                 "title": ".treatment-title-small",
-                "link": "a",
+                "link": {
+                    "selector": ".treatment-label a",
+                    "attr": "href",
+                    "prefix": "https://skydance.com"
+                },
                 "location": ".treatment-button"
             }
         }
@@ -386,6 +418,128 @@
                 "location": {
                     "find_previous": "h2"
                 }
+            }
+        }
+    },
+    {
+        "id": "goodbyekansas",
+        "name": "Goodbye Kansas",
+        "logo_url": "https://images.teamtailor-cdn.com/images/s3/teamtailor-production/logotype-v3/image_uploads/30eeee22-fd93-4ab3-ba54-c570a4d54c2b/original.png",
+        "careers_url": "https://career.goodbyekansas.com/jobs",
+        "website": "https://goodbyekansas.com/",
+        "scraping": {
+            "strategy": "html",
+            "container": "#jobs_list_container li",
+            "map": {
+                "title": "span",
+                "link": "a",
+                "location": {
+                    "selector": "div.mt-1.text-md span",
+                    "index": "1:"
+                }
+            }
+        }
+    },
+    {
+        "id": "ilpvfx",
+        "name": "Important Looking Pirates VFX",
+        "logo_url": "https://www.ilpvfx.com/_astro/logo.DRIecYuS.svg",
+        "careers_url": "https://ilpvfx.teamtailor.com/jobs",
+        "website": "https://www.ilpvfx.com/",
+        "scraping": {
+            "strategy": "html",
+            "container": "#jobs_list_container li",
+            "map": {
+                "title": "span",
+                "link": "a",
+                "location": {
+                    "selector": "div.mt-1.text-md span",
+                    "index": "1:"
+                }
+            }
+        }
+    },
+    {
+        "id": "thethirdfloor",
+        "name": "The Third Floor",
+        "logo_url": "https://cc-client-cdn.clearcompany.com/224aa8b1-7455-9afa-439f-0e0b9c9fa4fa/careersiteimages/stand_alone_custom_logo?_=1769990835",
+        "careers_url": "https://thethirdfloorinc.hrmdirect.com/employment/job-openings.php?search=true&",
+        "website": "https://thethirdfloorinc.com/",
+        "scraping": {
+            "strategy": "html",
+            "container": "tr.ReqRowClick",
+            "map": {
+                "title": ".posTitle a",
+                "link": {
+                    "selector": ".posTitle a",
+                    "attr": "href"
+                },
+                "location": {
+                    "selector": ".cities, .state",
+                    "index": "0:"
+                }
+            }
+        }
+    },
+    {
+        "id": "outpostvfx",
+        "name": "Outpost VFX",
+        "logo_url": "https://outpost-vfx.com/img/logo--white.svg",
+        "careers_url": "https://api.smartrecruiters.com/v1/companies/OutpostVFX/postings/",
+        "website": "https://www.smartrecruiters.com/OutpostVFX/",
+        "scraping": {
+            "strategy": "json",
+            "path": "content[*]",
+            "map": {
+                "title": "name",
+                "link": {
+                    "path": "id",
+                    "prefix": "https://www.smartrecruiters.com/RodeoFX/"
+                },
+                "location": "location.fullLocation"
+            }
+        }
+    },
+    {
+        "id": "pixomondo",
+        "name": "Pixomondo",
+        "logo_url": "https://amcrs.de/wp-content/uploads/2022/05/PXO-Logo_Black-RGB-1.png",
+        "careers_url": "https://apply.workable.com/api/v3/accounts/pxo/jobs",
+        "website": "https://pixomondo.com/",
+        "scraping": {
+            "strategy": "json",
+            "method": "POST",
+            "path": "results[*]",
+            "map": {
+                "title": "title",
+                "link": {
+                    "path": "shortcode",
+                    "prefix": "https://apply.workable.com/pxo/j/"
+                },
+                "location": "location.display"
+            }
+        }
+    },
+    {
+        "id": "risefx",
+        "name": "Rise FX",
+        "logo_url": "https://risefx.com/media/images/layout/logo_rise_white.png",
+        "careers_url": "https://risefx.com/rise-visual-effects-studios-jobs.php",
+        "website": "https://risefx.com/",
+        "scraping": {
+            "strategy": "html",
+            "container": ".job-container",
+            "map": {
+                "title": ".jobs-header",
+                "link": {
+                    "selector": "a.jobs-apply-button-link",
+                    "attr": "href"
+                },
+                "location": {
+                    "selector": ".jobs-header",
+                    "regex": "(?<=-\\s)[a-zA-Z\\s]+(?=\\s+-)|(?<=\\()[a-zA-Z\\s]+(?=\\))"
+                },
+                "remove_location_from_title": true
             }
         }
     }
