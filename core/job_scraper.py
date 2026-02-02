@@ -3,8 +3,8 @@ from bs4 import BeautifulSoup
 import urllib.parse
 import ssl
 import re
-from core.logger import logger
-from core.extractor import extract_json, extract_html, extract_items_html
+from .logger import logger
+from .extractor import extract_json, extract_html, extract_items_html
 import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -28,23 +28,11 @@ class JobScraper:
         strategy = scraping.get("strategy")
 
         if strategy == "json":
-            try:
-                return self.fetch_json(studio)
-            except Exception as e:
-                logger.error(f"Error fetching {studio.get('id')} (JSON): {e}")
-                return []
+            return self.fetch_json(studio)
         elif strategy == "html":
-            try:
-                return self.fetch_html(studio)
-            except Exception as e:
-                logger.error(f"Error fetching {studio.get('id')} (HTML): {e}")
-                return []
+            return self.fetch_html(studio)
         elif strategy == "rss":
-            try:
-                return self.fetch_rss(studio)
-            except Exception as e:
-                logger.error(f"Error fetching {studio.get('id')} (RSS): {e}")
-                return []
+            return self.fetch_rss(studio)
         else:
             logger.warning(f"No valid strategy for {studio.get('id')}: {strategy}")
             return []
@@ -359,7 +347,11 @@ class JobScraper:
                         node = item.find("guid")
 
                     if node:
-                        val = node.get_text(strip=True) if m.get("attr", "text") == "text" else node.get(m.get("attr"))
+                        val = (
+                            node.get_text(strip=True)
+                            if m.get("attr", "text") == "text"
+                            else node.get(m.get("attr"))
+                        )
                         if not val and (sel == "link" or def_tag == "link"):
                             nxt = node.next_sibling
                             if nxt and isinstance(nxt, str):

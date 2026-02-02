@@ -22,7 +22,7 @@ class WaitingSpinner(QtWidgets.QWidget):
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
         painter.translate(self.width() / 2, self.height() / 2)
         painter.rotate(self._angle)
-        painter.setPen(QtGui.QPen(QtGui.QColor("#00bcd4"), 3))
+        painter.setPen(QtGui.QPen(QtGui.QColor("#bdbdbd"), 2))
         # Draw arc
         painter.drawArc(-6, -6, 12, 12, 0, 270 * 16)
         painter.end()

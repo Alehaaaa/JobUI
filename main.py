@@ -1,4 +1,4 @@
-from ui.main_window import MainWindow
+from .ui.main_window import MainWindow
 
 
 def runner():

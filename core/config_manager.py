@@ -3,7 +3,7 @@ import os
 import urllib.request
 import ssl
 import hashlib
-from core.logger import logger
+from .logger import logger
 
 try:
     from PySide2 import QtCore, QtGui, QtSvg
@@ -170,6 +170,7 @@ class ConfigManager(QtCore.QObject):
     logo_cleared = QtCore.Signal(str)  # Emitted when a logo is removed (to show text placeholder)
 
     jobs_updated = QtCore.Signal(str, list)  # studio_id, date
+    jobs_failed = QtCore.Signal(str, str)  # studio_id, error_message
     jobs_started = QtCore.Signal(str)  # studio_id
     studio_visibility_changed = QtCore.Signal(str, bool)  # studio_id, enabled
     studios_visibility_changed = QtCore.Signal()  # For bulk changes
@@ -180,7 +181,7 @@ class ConfigManager(QtCore.QObject):
         # Root dir is up one level from 'core'
         self.root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.config_path = os.path.join(self.root_dir, "config", "studios.json")
-        self.logos_dir = os.path.join(self.root_dir, "resources", "logos")
+        self.logos_dir = os.path.join(self.root_dir, "resources", "_logos")
 
         if not os.path.exists(self.logos_dir):
             os.makedirs(self.logos_dir)
@@ -197,10 +198,7 @@ class ConfigManager(QtCore.QObject):
         self.logo_worker = None
         self.job_worker = None
 
-        try:
-            from .job_scraper import JobScraper
-        except (ImportError, ValueError):
-            from core.job_scraper import JobScraper
+        from .job_scraper import JobScraper
 
         self.scraper = JobScraper()
 
@@ -436,6 +434,7 @@ class ConfigManager(QtCore.QObject):
 
         self.job_worker = JobWorker(studios, self.scraper)
         self.job_worker.jobs_ready.connect(self._on_jobs_ready)
+        self.job_worker.jobs_failed.connect(self.jobs_failed.emit)
         self.job_worker.start()
 
     def _on_jobs_ready(self, studio_id, jobs):
@@ -468,6 +467,7 @@ class ConfigManager(QtCore.QObject):
 
 class JobWorker(QtCore.QThread):
     jobs_ready = QtCore.Signal(str, list)  # studio_id, list of job dicts
+    jobs_failed = QtCore.Signal(str, str)  # studio_id, error_message
     finished = QtCore.Signal()
 
     def __init__(self, studios, scraper, parent=None):
@@ -485,7 +485,9 @@ class JobWorker(QtCore.QThread):
             max_workers = 1
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_studio = {executor.submit(self.scraper.fetch_jobs, studio): studio for studio in self.studios}
+            future_to_studio = {
+                executor.submit(self.scraper.fetch_jobs, studio): studio for studio in self.studios
+            }
 
             for future in concurrent.futures.as_completed(future_to_studio):
                 if not self._is_running:
@@ -500,6 +502,7 @@ class JobWorker(QtCore.QThread):
                 except Exception as e:
                     if self._is_running:
                         logger.error(f"Error processing jobs for {studio.get('name', 'Unknown')}: {e}")
+                        self.jobs_failed.emit(studio.get("id"), str(e))
 
         if self._is_running:
             self.finished.emit()
