@@ -37,6 +37,8 @@ except (ImportError, ValueError):
 
 
 class JobWidget(QtWidgets.QFrame):
+    clicked = QtCore.Signal()
+
     def __init__(self, job_data, parent=None):
         super(JobWidget, self).__init__(parent)
         self.job_data = job_data
@@ -49,8 +51,8 @@ class JobWidget(QtWidgets.QFrame):
         self.setStyleSheet(JOB_WIDGET_STYLE)
 
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(4)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(2)
 
         # Title
         self.title_label = QtWidgets.QLabel(job_data.get("title", "Unknown"))
@@ -74,30 +76,43 @@ class JobWidget(QtWidgets.QFrame):
         # Bottom row: Location (left) + Link Button (right)
         bottom_layout = QtWidgets.QHBoxLayout()
         bottom_layout.setContentsMargins(0, 0, 0, 0)
-        bottom_layout.setSpacing(4)
-
         bottom_layout.addWidget(self.location_label)
         bottom_layout.addStretch()
 
-        self.link_btn = QtWidgets.QPushButton()
-        self.link_btn.setObjectName("job_link_btn")
-        self.link_btn.setIcon(QtWidgets.QApplication.style().standardIcon(QtWidgets.QStyle.SP_ArrowRight))
-        self.link_btn.setFlat(False)
-        self.link_btn.setToolTip("Open Job Link")
-        self.link_btn.clicked.connect(self.open_link)
-        self.link_btn.setFixedSize(30, 24)
-        self.link_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        extra_link = job_data.get("extra_link")
+        if extra_link:
+            self.pdf_btn = QtWidgets.QPushButton()
+            self.pdf_btn.setIcon(QtWidgets.QApplication.style().standardIcon(QtWidgets.QStyle.SP_MessageBoxInformation))
+            self.pdf_btn.setToolTip("Open Job Info Link")
+            self.pdf_btn.setFixedSize(20, 20)
+            self.pdf_btn.setCursor(QtCore.Qt.PointingHandCursor)
+            self.pdf_btn.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(extra_link)))
+            bottom_layout.addWidget(self.pdf_btn)
 
-        bottom_layout.addWidget(self.link_btn)
+        self.clicked.connect(self.open_link)
+        self.setCursor(QtCore.Qt.PointingHandCursor)
+        self.setToolTip("Open Job Link")
+
         layout.addLayout(bottom_layout)
 
         if not clean_loc:
             self.location_label.hide()
 
+    def mouseReleaseEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton and self.rect().contains(event.pos()):
+            self.clicked.emit()
+            event.accept()
+        super(JobWidget, self).mouseReleaseEvent(event)
+
     def open_link(self):
         link = self.job_data.get("link")
         if link:
             QtGui.QDesktopServices.openUrl(QtCore.QUrl(str(link)))
+
+    def show_extra_info(self):
+        info = self.job_data.get("extra_info")
+        if info:
+            QtWidgets.QMessageBox.information(self, "Job Extra Info", str(info))
 
 
 class StudioWidget(QtWidgets.QFrame):

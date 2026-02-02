@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.3] - 2026-02-02
+
+### Added
+- **Unified Scraper Architecture**: Refactored the entire scraping core into a generic, config-driven system (`extractor.py`). Specialized methods have been replaced by flexible `json` and `html` strategies in `job_scraper.py`.
+- **PDF/Extra Link Support**: Added support for extracting secondary links (like PDF descriptions) from job postings using regex.
+  - Added a new **Secondary Link Button** to the job card in the UI when extra links are present.
+- **Studios Menu Actions**: Added **"Enable All"** and **"Disable All"** actions to the Studios menu for bulk visibility control.
+- **Config Auto-Reload**: Implemented MD5 hash monitoring for `studios.json` to automatically reload settings when the file is modified externally.
+
+### Changed
+- **UI Interactions**: 
+  - Clicking the studio logo in the header now opens the main **Website** instead of the careers page in some cases.
+  - Studios menu checkboxes now dynamically sync with bulk enable/disable actions.
+  
+### Fixed
+- **Stability**: Fixed `NoneType` crashes in the scraper and UI when location or link data is missing.
+- **Extractor**: Improved handling of empty selectors and attributes to prevent extraction failures.
+
 ## [0.1.2] - 2026-02-02
 
 ### Added

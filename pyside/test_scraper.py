@@ -2,7 +2,6 @@ import os
 import json
 import sys
 
-# Add the project root to sys.path so we can import from here
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from core.job_scraper import JobScraper
@@ -29,7 +28,9 @@ def test_studio(studio_id):
 
     print(f"Found {len(jobs)} jobs:")
     for i, job in enumerate(jobs[:10]):
-        print(f"{i + 1}. {job['title']} | {' '.join(job['location'].split())} | {job['link']}")
+        print(
+            f"{i + 1}. {job['title']} | {' '.join(job['location'].split())} | {job['link']} | {job.get('extra_link')}"
+        )
 
     if len(jobs) > 10:
         print(f"... and {len(jobs) - 10} more")
@@ -41,7 +42,7 @@ if __name__ == "__main__":
     #          fortiche, mikros, steamroller, giant, netflix, wildchild, flyingbark,
     #          rodeofx, framestore, skydance, illusorium, littlezoo
 
-    target_studio = "dneg"
+    target_studio = "digitaldomain"
 
     if len(sys.argv) > 1:
         target_studio = sys.argv[1]

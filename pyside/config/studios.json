@@ -588,7 +588,8 @@
         "careers_url": "http://careers.digitaldomain.com/rss.php",
         "website": "https://digitaldomain.com/",
         "scraping": {
-            "strategy": "rss",
+            "strategy": "html",
+            "container": "item",
             "map": {
                 "title": {
                     "selector": "title",
@@ -604,6 +605,11 @@
                         "sep": ":",
                         "index": 1
                     }
+                },
+                "extra_link": {
+                    "selector": "description",
+                    "attr": "html",
+                    "regex_link": "href=\"(.*?\\.pdf)\""
                 }
             }
         }

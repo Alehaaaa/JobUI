@@ -280,6 +280,16 @@ class JobScraper:
                 # Collapse extra spaces
                 title = " ".join(title.split())
 
+            extra_map = mapping.get("extra_link")
+            extra_link = ""
+            if extra_map and isinstance(extra_map, dict):
+                # We need to process description as raw HTML to extract link
+                raw_desc = get_val(extra_map, "html")
+                if extra_map.get("regex_link"):
+                    m = re.search(extra_map["regex_link"], raw_desc)
+                    if m:
+                        extra_link = m.group(1) if m.groups() else m.group(0)
+
             if not link:
                 # If no link found, fallback to careers URL to at least show the job exists
                 link = careers_url
@@ -295,7 +305,7 @@ class JobScraper:
             if link != careers_url:
                 seen_links.add(link)
 
-            jobs.append({"title": title, "link": link, "location": location})
+            jobs.append({"title": title, "link": link, "location": location, "extra_link": extra_link})
 
         return jobs
 
@@ -349,11 +359,7 @@ class JobScraper:
                         node = item.find("guid")
 
                     if node:
-                        val = (
-                            node.get_text(strip=True)
-                            if m.get("attr", "text") == "text"
-                            else node.get(m.get("attr"))
-                        )
+                        val = node.get_text(strip=True) if m.get("attr", "text") == "text" else node.get(m.get("attr"))
                         if not val and (sel == "link" or def_tag == "link"):
                             nxt = node.next_sibling
                             if nxt and isinstance(nxt, str):
