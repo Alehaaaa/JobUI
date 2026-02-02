@@ -1,6 +1,6 @@
 import sys
 import os
-from .core.logger import LOGGING, logger
+from core.logger import LOGGING, logger
 
 __all__ = ["LOGGING", "logger", "show", "VERSION", "TOOL_TITLE"]
 

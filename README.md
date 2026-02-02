@@ -6,7 +6,7 @@ JobUI is a job application tracker and manager designed to help VFX artists find
 
 The core application is built using **Python** and **PySide6** and is primarily designed to run as a tool within **Autodesk Maya**, though the core logic can be adapted for standalone use.
 
-The main codebase for the PySide version is located in the `pyside/` directory.
+The main codebase is located in the root directory.
 
 ### Features
 - **Studio Scrapers**: Configurable scrapers for major VFX studios (Disney, ILM, DNEG, etc.).
@@ -29,20 +29,20 @@ The main codebase for the PySide version is located in the `pyside/` directory.
 ## Usage
 
 ### In Maya
-Add the repository root to your `PYTHONPATH` or copy the `pyside` folder to your Maya scripts directory.
+Add the repository root to your `PYTHONPATH`.
 
 Run the tool in Maya's python script editor:
 
 ```python
-import pyside.main
-pyside.show()
+import main
+main.runner()
 ```
 
 ### Standalone (Testing)
 You can run the test scraper script to verify studio configurations:
 
 ```bash
-python pyside/test_scraper.py [studio_id]
+python test_scraper.py [studio_id]
 ```
 
 ## Mac Native Version
@@ -57,8 +57,9 @@ The native macOS application (built with Swift/Xcode) is maintained on a separat
 
 ## Project Structure
 
-- `pyside/`: Core Python/PySide application code.
-  - `ui/`: User Interface components.
-  - `core/`: Scraper logic and configuration managers.
-  - `config/`: Studio configuration JSONs.
+- `main.py`: Main entry point.
+- `ui/`: User Interface components.
+- `core/`: Scraper logic and configuration managers.
+- `config/`: Studio configuration JSONs.
+- `utils/`: Utility functions.
 - `requirements.txt`: Python dependencies.

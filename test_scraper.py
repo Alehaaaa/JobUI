@@ -37,10 +37,10 @@ def test_studio(studio_id):
 
 
 if __name__ == "__main__":
-    # YOU CAN CHANGE THE STUDIO ID HERE TO TEST DIFFERENT ONES
+    # CHANGE THE STUDIO ID HERE TO TEST DIFFERENT ONES
     # Options: disney, blur, pixar, ranchito, dreamworks, sony, dneg, illumination,
     #          fortiche, mikros, steamroller, giant, netflix, wildchild, flyingbark,
-    #          rodeofx, framestore, skydance, illusorium, littlezoo
+    #          rodeofx, framestore, skydance, illusorium, littlezoo...
 
     target_studio = "digitaldomain"
 

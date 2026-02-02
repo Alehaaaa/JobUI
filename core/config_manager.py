@@ -3,7 +3,7 @@ import os
 import urllib.request
 import ssl
 import hashlib
-from .logger import logger
+from core.logger import logger
 
 try:
     from PySide2 import QtCore, QtGui, QtSvg
@@ -485,9 +485,7 @@ class JobWorker(QtCore.QThread):
             max_workers = 1
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_studio = {
-                executor.submit(self.scraper.fetch_jobs, studio): studio for studio in self.studios
-            }
+            future_to_studio = {executor.submit(self.scraper.fetch_jobs, studio): studio for studio in self.studios}
 
             for future in concurrent.futures.as_completed(future_to_studio):
                 if not self._is_running:

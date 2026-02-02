@@ -3,8 +3,8 @@ from bs4 import BeautifulSoup
 import urllib.parse
 import ssl
 import re
-from .logger import logger
-from .extractor import extract_json, extract_html, extract_items_html
+from core.logger import logger
+from core.extractor import extract_json, extract_html, extract_items_html
 import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

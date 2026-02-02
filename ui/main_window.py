@@ -6,11 +6,11 @@ except ImportError:
     from PySide6.QtGui import QAction  # noqa: F401
 import re
 import os
-from ..core.logger import logger
+from core.logger import logger
 
-from .flow_layout import FlowLayout
-from .widgets import WaitingSpinner, ClickableLabel, OpenMenu
-from .styles import (
+from ui.flow_layout import FlowLayout
+from ui.widgets import WaitingSpinner, ClickableLabel, OpenMenu
+from ui.styles import (
     JOB_WIDGET_STYLE,
     STUDIO_WIDGET_STYLE,
     GLOBAL_STYLE,
@@ -31,7 +31,7 @@ except ImportError:
 
 
 try:
-    from ..utils.maya_utils import get_maya_main_window
+    from utils.maya_utils import get_maya_main_window
 except (ImportError, ValueError):
     from utils.maya_utils import get_maya_main_window
 
@@ -232,7 +232,7 @@ class StudioWidget(QtWidgets.QFrame):
         menu.exec_(self.logo_label.mapToGlobal(pos))
 
     def open_edit_dialog(self):
-        from .studio_dialog import StudioDialog
+        from ui.studio_dialog import StudioDialog
 
         dialog = StudioDialog(self.studio_data, self)
         if dialog.exec_():
@@ -339,7 +339,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
 
     def __init__(self, parent=None):
         try:
-            from ..utils.maya_utils import MAYA_AVAILABLE
+            from utils.maya_utils import MAYA_AVAILABLE
         except (ImportError, ValueError):
             from utils.maya_utils import MAYA_AVAILABLE
 
@@ -354,7 +354,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
 
         # Native config
         try:
-            from ..core.config_manager import ConfigManager
+            from core.config_manager import ConfigManager
         except (ImportError, ValueError):
             from core.config_manager import ConfigManager
 
@@ -534,7 +534,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         self._do_search()
 
     def open_add_studio_dialog(self):
-        from .studio_dialog import StudioDialog
+        from ui.studio_dialog import StudioDialog
 
         dialog = StudioDialog(parent=self)
         if dialog.exec_():

@@ -1,5 +1,5 @@
 try:
-    from ..core.logger import logger
+    from core.logger import logger
 except (ImportError, ValueError):
     import logging
 
