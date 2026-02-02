@@ -34,8 +34,8 @@ Add the repository root to your `PYTHONPATH`.
 Run the tool in Maya's python script editor:
 
 ```python
-import main
-main.runner()
+import JobUI
+JobUI.show()
 ```
 
 ### Standalone (Testing)

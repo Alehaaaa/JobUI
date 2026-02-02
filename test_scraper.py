@@ -42,7 +42,7 @@ if __name__ == "__main__":
     #          fortiche, mikros, steamroller, giant, netflix, wildchild, flyingbark,
     #          rodeofx, framestore, skydance, illusorium, littlezoo...
 
-    target_studio = "digitaldomain"
+    target_studio = "sony"
 
     if len(sys.argv) > 1:
         target_studio = sys.argv[1]

@@ -1,21 +1,25 @@
 import sys
 import os
-from core.logger import LOGGING, logger
 
-__all__ = ["LOGGING", "logger", "show", "VERSION", "TOOL_TITLE"]
+# Add this directory to sys.path so 'core', 'ui', and 'utils' are importable as top-level modules.
+# This fixes ModuleNotFoundError when the package is installed in a subdirectory (like Maya's scripts folder).
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+# Also ensure parent dir is available so the package itself remains importable
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+from core.logger import LOGGING, logger  # noqa: E402
 
 try:
     import importlib
 except ImportError:
     importlib = None
 
-
-# Add parent directory to sys.path so 'pyside' (this package) is importable
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-if parent_dir not in sys.path:
-    sys.path.append(parent_dir)
-
+__all__ = ["LOGGING", "logger", "show", "VERSION", "TOOL_TITLE"]
 
 TOOL_TITLE = "Job Fetcher"
 MOD_NAME = __name__
