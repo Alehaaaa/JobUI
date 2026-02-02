@@ -22,48 +22,49 @@ def check_remote_version():
     Checks for updates by comparing local version with remote VERSION file.
     Returns: (remote_version, last_modified_date_str)
     """
-    remote_url = "https://raw.githubusercontent.com/Alehaaaa/JobUI/main/VERSION"
     api_url = "https://api.github.com/repos/Alehaaaa/JobUI/commits?path=VERSION&per_page=1"
 
     remote_ver = None
     last_modified = None
+    sha = "main"
 
     try:
         context = ssl._create_unverified_context()
+
+        try:
+            req_headers = {"User-Agent": "JobUI-Updater"}
+            if hasattr(urllib, "request"):  # Python 3
+                req = urllib.request.Request(api_url, headers=req_headers)
+            else:  # Python 2
+                import urllib2
+
+                req = urllib2.Request(api_url, headers=req_headers)
+
+            with contextlib.closing(urlopen(req, timeout=5, context=context)) as api_res:
+                if api_res.getcode() == 200:
+                    commits = json.loads(api_res.read().decode("utf-8"))
+                    if commits and isinstance(commits, list):
+                        last_modified = commits[0].get("commit", {}).get("committer", {}).get("date")
+                        sha = commits[0].get("sha", "main")
+        except Exception as e:
+            if logger:
+                logger.debug("Failed to fetch commit info from GitHub API: {}".format(e))
+
+        remote_url = "https://raw.githubusercontent.com/Alehaaaa/JobUI/{}/VERSION".format(sha)
         with contextlib.closing(urlopen(remote_url, timeout=5, context=context)) as response:
             if response.getcode() == 200:
-                last_modified = response.info().get("Last-Modified")
                 content = response.read()
                 try:
                     remote_ver = content.decode("utf-8").strip()
                 except UnicodeDecodeError:
                     remote_ver = content.decode("utf-16").strip()
 
-        if not last_modified and remote_ver:
-            try:
-                req_headers = {"User-Agent": "JobUI-Updater"}
-                if hasattr(urllib, "request"):  # Python 3
-                    req = urllib.request.Request(api_url, headers=req_headers)
-                else:  # Python 2
-                    import urllib2
-
-                    req = urllib2.Request(api_url, headers=req_headers)
-
-                with contextlib.closing(urlopen(req, timeout=5, context=context)) as api_res:
-                    if api_res.getcode() == 200:
-                        commits = json.loads(api_res.read().decode("utf-8"))
-                        if commits and isinstance(commits, list):
-                            last_modified = commits[0].get("commit", {}).get("committer", {}).get("date")
-            except Exception as e:
-                if logger:
-                    logger.debug("Failed to fetch date from GitHub API: {}".format(e))
-
         return remote_ver, last_modified
 
     except HTTPError as e:
         if e.code != 404:
             if logger:
-                logger.warning("Update check failed for {}: {}".format(remote_url, e))
+                logger.warning("Update check failed for {}: {}".format(api_url, e))
     except Exception as e:
         if logger:
             logger.warning("Failed to check for updates: {}".format(e))
