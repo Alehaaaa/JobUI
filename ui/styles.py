@@ -72,6 +72,6 @@ GLOBAL_STYLE = """
     }
 """
 
-NO_RESULTS_STYLE = "QLabel { color: #666; font-style: italic; }"
+NO_RESULTS_STYLE = "QLabel { color: #888; font-style: italic; }"
 LOCATION_STYLE = "QLabel { color: #888; } QLabel:disabled { color: #555; }"
 TITLE_STYLE = "QLabel { color: #eee; font-weight: bold; } QLabel:disabled { color: #666; }"

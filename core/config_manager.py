@@ -239,7 +239,6 @@ class ConfigManager(QtCore.QObject):
             with open(self.config_path, "r", encoding="utf-8") as f:
                 try:
                     raw_studios = json.load(f)
-                    # Deduplicate: Keep the last occurrence of each ID
                     studios_map = {}
                     for s in raw_studios:
                         if "id" in s and not s.get("disabled", False):

@@ -287,7 +287,11 @@ class StudioWidget(QtWidgets.QFrame):
         if sid == self.studio_data.get("id"):
             self.update_jobs()
             self.spinner.hide()
-            self.refresh_btn.setIcon(resources.get_icon("success.svg"))
+
+            # Use different icon if no jobs found
+            icon_name = "success.svg" if jobs else "empty.svg"
+            self.refresh_btn.setIcon(resources.get_icon(icon_name))
+
             self.refresh_btn.setToolTip(
                 f"Found {len(jobs)} job{'' if len(jobs) == 1 else 's'} for {self.studio_data['name']}"
             )
@@ -364,6 +368,7 @@ class StudioWidget(QtWidgets.QFrame):
 
         if self.no_match_label:
             if match_count == 0 and len(self.job_widgets) > 0:
+                self.no_match_label.setText('No jobs matching "{}"'.format(pattern))
                 self.no_match_label.show()
             else:
                 self.no_match_label.hide()
@@ -410,6 +415,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         self.auto_refresh_timer.timeout.connect(self.config_manager.fetch_all_jobs)
         self.refresh_intervals = [
             ("Never", None),
+            ("10 sec", 10 * 1000),
             ("30 sec", 30 * 1000),
             ("1 min", 60 * 1000),
             ("5 min", 5 * 60 * 1000),
@@ -747,8 +753,10 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
 
         # Update Match Placeholder
         # Only show "No matches" if we actually have enabled studios but none are visible
-        self.lbl_no_matches.setVisible(enabled_count > 0 and visible_count == 0)
-        if self.lbl_no_matches.isVisible():
+        matches = enabled_count > 0 and visible_count == 0
+        self.lbl_no_matches.setVisible(matches)
+        if matches:
+            self.lbl_no_matches.setText('No studios matching "{}"'.format(text))
             self.studios_layout.addWidget(self.lbl_no_matches)
 
         self._update_placeholders()
