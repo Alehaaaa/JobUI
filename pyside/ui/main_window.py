@@ -220,8 +220,9 @@ class StudioWidget(QtWidgets.QFrame):
         from .studio_dialog import StudioDialog
 
         dialog = StudioDialog(self.studio_data, self)
-        dialog.saved.connect(self.config_manager.update_studio)
-        dialog.exec_()
+        if dialog.exec_():
+            # Delay update to avoid hard crash in Maya when parent widget is destroyed from child dialog signal
+            QtCore.QTimer.singleShot(10, lambda: self.config_manager.update_studio(dialog.studio_data))
 
     def load_logo(self):
         sid = self.studio_data.get("id")
@@ -521,8 +522,8 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         from .studio_dialog import StudioDialog
 
         dialog = StudioDialog(parent=self)
-        dialog.saved.connect(self.config_manager.add_studio)
-        dialog.exec_()
+        if dialog.exec_():
+            QtCore.QTimer.singleShot(10, lambda: self.config_manager.add_studio(dialog.studio_data))
 
     def on_studio_added(self, studio_data):
         self.config_manager.add_studio(studio_data)

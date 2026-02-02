@@ -199,7 +199,7 @@
     },
     {
         "id": "steamroller",
-        "name": "Steamroller",
+        "name": "Steamroller Animation",
         "logo_url": "https://images.squarespace-cdn.com/content/v1/67f6636e2f4e905b54511328/1744200713785-AN4IHNUS164VDOH6YVXV/SteamrollerAnimation.png",
         "careers_url": "https://ats.rippling.com/steamroller-animation/jobs",
         "scraping": {
@@ -210,7 +210,8 @@
                 "link": "a",
                 "location": "span[data-icon='LOCATION_OUTLINE'] + p"
             }
-        }
+        },
+        "website": ""
     },
     {
         "id": "giant",
