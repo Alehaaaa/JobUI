@@ -543,5 +543,177 @@
                 "remove_location_from_title": true
             }
         }
+    },
+    {
+        "id": "eyeline",
+        "name": "Eyeline",
+        "logo_url": "https://showbizjobsblobcdn.azureedge.net/logos/e/eyeline/eyeline-logo-2025-765.png",
+        "careers_url": "https://api.lever.co/v0/postings/Eyeline?mode=json",
+        "website": "https://jobs.lever.co/Eyeline",
+        "scraping": {
+            "strategy": "json",
+            "path": "[*]",
+            "map": {
+                "title": "text",
+                "link": "hostedUrl",
+                "location": "categories.location"
+            }
+        }
+    },
+    {
+        "id": "luma",
+        "name": "Luma Pictures",
+        "logo_url": "https://cdn.prod.website-files.com/67377ea5129a86abd6b702f5/6848ab534a9b362e28e4bff8_logo_oded.png",
+        "careers_url": "https://www.lumapictures.com/careers",
+        "scraping": {
+            "strategy": "html",
+            "container": "div.careers-holder p.paragraph-4",
+            "map": {
+                "title": {
+                    "selector": "",
+                    "regex": "(?<=Job Title: ).*?(?= Location:|$)"
+                },
+                "link": "a.link",
+                "location": {
+                    "selector": "",
+                    "regex": "(?<=Location: ).*?(?= Job Description:|$)"
+                }
+            }
+        }
+    },
+    {
+        "id": "digitaldomain",
+        "name": "Digital Domain",
+        "logo_url": "https://digitaldomain.com/wp-content/uploads/2020/02/dd-logo-no-animation.png",
+        "careers_url": "http://careers.digitaldomain.com/rss.php",
+        "website": "https://digitaldomain.com/",
+        "scraping": {
+            "strategy": "rss",
+            "map": {
+                "title": {
+                    "selector": "title",
+                    "split": {
+                        "sep": ":",
+                        "index": 0
+                    }
+                },
+                "link": "link",
+                "location": {
+                    "selector": "title",
+                    "split": {
+                        "sep": ":",
+                        "index": 1
+                    }
+                }
+            }
+        }
+    },
+    {
+        "id": "trixter",
+        "name": "Trixter",
+        "logo_url": "https://trixter.de/wp-content/themes/trixter/img/trixter_logo.svg",
+        "careers_url": "https://www.trixter.de/jobs/",
+        "scraping": {
+            "strategy": "html",
+            "container": "a.joblistings--job",
+            "map": {
+                "title": ".joblistings--title",
+                "link": {
+                    "selector": "",
+                    "attr": "href"
+                },
+                "location": {
+                    "selector": "",
+                    "attr": "data-city"
+                }
+            }
+        }
+    },
+    {
+        "id": "weta",
+        "name": "Wētā FX",
+        "logo_url": "https://careers.wetafx.co.nz/assets/logo-white-aba240515c42f0dfe83af315f98f2f894f5e72c330e4476a730e71247cb5cad2.png",
+        "careers_url": "https://careers.wetafx.co.nz/",
+        "scraping": {
+            "strategy": "html",
+            "container": "div.flex-wrap.justify-around.hidden.md\\:flex div.card",
+            "map": {
+                "title": "h4",
+                "link": {
+                    "selector": "a.link-out",
+                    "attr": "href",
+                    "prefix": "https://careers.wetafx.co.nz/"
+                },
+                "location": "div.card-body span.bg-black-darker"
+            }
+        }
+    },
+    {
+        "id": "titmouse",
+        "name": "Titmouse",
+        "logo_url": "https://cdn3.toonboom.com/wp-content/uploads/2026/01/26140446/Titmouse_logo.png",
+        "careers_url": "https://titmouse.net/careers/",
+        "website": "https://titmouse.net/",
+        "scraping": {
+            "strategy": "html",
+            "container": "li.titmouse-external-jobs__item",
+            "map": {
+                "title": "a",
+                "link": "a",
+                "location": {
+                    "find_previous": "h3"
+                },
+                "remove_location_from_title": true
+            }
+        }
+    },
+    {
+        "id": "mainframe",
+        "name": "Mainframe Studios",
+        "logo_url": "https://www.mainframe.ca/wp-content/uploads/2019/09/Mainframe_Logo_001.svg",
+        "website": "https://www.mainframe.ca/careers/",
+        "careers_url": "https://mainframe.bamboohr.com/careers/list",
+        "scraping": {
+            "strategy": "json",
+            "path": "result[*]",
+            "map": {
+                "title": "jobOpeningName",
+                "link": {
+                    "path": "id",
+                    "prefix": "https://www.mainframe.ca/careers/"
+                },
+                "location": "location.city"
+            }
+        }
+    },
+    {
+        "id": "flyingwildhog",
+        "name": "Flying Wild Hog",
+        "logo_url": "https://storage.googleapis.com/fwh-website.appspot.com/1/2019/03/fwh-logo.png",
+        "careers_url": "https://flyingwildhog-open-positions-form.productive24.com/v1/list/fetch",
+        "website": "https://flyingwildhog.com/jobs/",
+        "scraping": {
+            "strategy": "json",
+            "method": "POST",
+            "headers": {
+                "Accept": "application/json, text/plain, */*",
+                "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+                "Referer": "https://flyingwildhog-open-positions-form.productive24.com/",
+                "Origin": "https://flyingwildhog-open-positions-form.productive24.com"
+            },
+            "form_data": {
+                "code": "list",
+                "limit": "50",
+                "offset": "0",
+                "filter": "{}",
+                "sort": "{}"
+            },
+            "path": "data[*]",
+            "map": {
+                "title": "offer_name",
+                "link": "url",
+                "location": "location"
+            }
+        }
     }
 ]

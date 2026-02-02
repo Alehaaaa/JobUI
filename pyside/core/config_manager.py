@@ -244,7 +244,7 @@ class ConfigManager(QtCore.QObject):
                     # Deduplicate: Keep the last occurrence of each ID
                     studios_map = {}
                     for s in raw_studios:
-                        if "id" in s:
+                        if "id" in s and not s.get("disabled", False):
                             studios_map[s["id"]] = s
                     self.studios = list(studios_map.values())
 
@@ -411,7 +411,8 @@ class ConfigManager(QtCore.QObject):
             self.load_config()
             self.download_missing_logos()
 
-        self.start_job_worker(self.studios)
+        active_studios = [s for s in self.studios if not s.get("disabled", False)]
+        self.start_job_worker(active_studios)
 
     def fetch_studio_jobs(self, studio_data):
         # Check for config updates before refetching
@@ -484,7 +485,9 @@ class JobWorker(QtCore.QThread):
             max_workers = 1
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_studio = {executor.submit(self.scraper.fetch_jobs, studio): studio for studio in self.studios}
+            future_to_studio = {
+                executor.submit(self.scraper.fetch_jobs, studio): studio for studio in self.studios
+            }
 
             for future in concurrent.futures.as_completed(future_to_studio):
                 if not self._is_running:

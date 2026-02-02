@@ -11,7 +11,7 @@ from core.job_scraper import JobScraper
 def test_studio(studio_id):
     # Load studios.json
     studios_path = os.path.join(os.path.dirname(__file__), "config", "studios.json")
-    with open(studios_path, "r") as f:
+    with open(studios_path, "r", encoding="utf-8") as f:
         studios = json.load(f)
 
     # Find the studio
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     #          fortiche, mikros, steamroller, giant, netflix, wildchild, flyingbark,
     #          rodeofx, framestore, skydance, illusorium, littlezoo
 
-    target_studio = "flyingbark"
+    target_studio = "digitaldomain"
 
     if len(sys.argv) > 1:
         target_studio = sys.argv[1]
