@@ -102,17 +102,6 @@ class JobWidget(QtWidgets.QFrame):
             self.extra_link_btn.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(extra_link)))
             bottom_layout.addWidget(self.extra_link_btn)
 
-        # Extra Info Button (Dialog)
-        extra_info = job_data.get("extra_info")
-        if extra_info:
-            self.extra_info_btn = QtWidgets.QPushButton()
-            self.extra_info_btn.setIcon(resources.get_icon("info.svg"))
-            self.extra_info_btn.setToolTip("View Extra Info")
-            self.extra_info_btn.setFixedSize(20, 20)
-            self.extra_info_btn.setCursor(QtCore.Qt.PointingHandCursor)
-            self.extra_info_btn.clicked.connect(self.show_extra_info)
-            bottom_layout.addWidget(self.extra_info_btn)
-
         self.clicked.connect(self.open_link)
         self.setCursor(QtCore.Qt.PointingHandCursor)
         self.setToolTip("Open Job Link")
@@ -132,11 +121,6 @@ class JobWidget(QtWidgets.QFrame):
         link = self.job_data.get("link")
         if link:
             QtGui.QDesktopServices.openUrl(QtCore.QUrl(str(link)))
-
-    def show_extra_info(self):
-        info = self.job_data.get("extra_info")
-        if info:
-            QtWidgets.QMessageBox.information(self, "Job Extra Info", str(info))
 
 
 class StudioWidget(QtWidgets.QFrame):
