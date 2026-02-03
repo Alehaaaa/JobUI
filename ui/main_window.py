@@ -81,21 +81,37 @@ class JobWidget(QtWidgets.QFrame):
         self.location_label.setWordWrap(True)
         self.location_label.setStyleSheet(LOCATION_STYLE)
 
-        # Bottom row: Location (left) + Link Button (right)
+        # Bottom row: Location (left) + Extra Buttons (right)
         bottom_layout = QtWidgets.QHBoxLayout()
         bottom_layout.setContentsMargins(0, 0, 0, 0)
-        bottom_layout.addWidget(self.location_label)
-        bottom_layout.addStretch()
 
+        # Location takes all space possible (stretch=1)
+        bottom_layout.addWidget(self.location_label, 1)
+        # If location is hidden, we still need a stretch to push buttons to the right
+        if not clean_loc:
+            bottom_layout.addStretch(1)
+
+        # Extra Link Button (e.g. PDF)
         extra_link = job_data.get("extra_link")
         if extra_link:
-            self.pdf_btn = QtWidgets.QPushButton()
-            self.pdf_btn.setIcon(resources.get_icon("info.svg"))
-            self.pdf_btn.setToolTip("Open Job Info Link")
-            self.pdf_btn.setFixedSize(20, 20)
-            self.pdf_btn.setCursor(QtCore.Qt.PointingHandCursor)
-            self.pdf_btn.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(extra_link)))
-            bottom_layout.addWidget(self.pdf_btn)
+            self.extra_link_btn = QtWidgets.QPushButton()
+            self.extra_link_btn.setIcon(resources.get_icon("info.svg"))
+            self.extra_link_btn.setToolTip("Open Job Info Link")
+            self.extra_link_btn.setFixedSize(20, 20)
+            self.extra_link_btn.setCursor(QtCore.Qt.PointingHandCursor)
+            self.extra_link_btn.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(extra_link)))
+            bottom_layout.addWidget(self.extra_link_btn)
+
+        # Extra Info Button (Dialog)
+        extra_info = job_data.get("extra_info")
+        if extra_info:
+            self.extra_info_btn = QtWidgets.QPushButton()
+            self.extra_info_btn.setIcon(resources.get_icon("info.svg"))
+            self.extra_info_btn.setToolTip("View Extra Info")
+            self.extra_info_btn.setFixedSize(20, 20)
+            self.extra_info_btn.setCursor(QtCore.Qt.PointingHandCursor)
+            self.extra_info_btn.clicked.connect(self.show_extra_info)
+            bottom_layout.addWidget(self.extra_info_btn)
 
         self.clicked.connect(self.open_link)
         self.setCursor(QtCore.Qt.PointingHandCursor)
@@ -518,9 +534,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         self.studios_layout = FlowLayout(self.studios_container, margin=10)
 
         # -- Placeholders --
-        self.lbl_no_studios_setup = QtWidgets.QLabel(
-            "No studios setup. Go to Options > Add Studio... to get started."
-        )
+        self.lbl_no_studios_setup = QtWidgets.QLabel("No studios setup. Go to Options > Add Studio... to get started.")
         self.lbl_no_studios_setup.setAlignment(QtCore.Qt.AlignCenter)
         self.lbl_no_studios_setup.setStyleSheet(NO_RESULTS_STYLE)
         self.lbl_no_studios_setup.setWordWrap(True)
@@ -874,9 +888,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
 
                 logger.info("Setting workspace control position: {}".format(position))
                 logger.info("Setting workspace control size: {}".format(size))
-                qt_control.setGeometry(
-                    QtCore.QRect(int(position[0]), int(position[1]), int(size[0]), int(size[1]))
-                )
+                qt_control.setGeometry(QtCore.QRect(int(position[0]), int(position[1]), int(size[0]), int(size[1])))
         except Exception as e:
             logger.error("Error setting workspace control geometry: {}".format(e))
 
