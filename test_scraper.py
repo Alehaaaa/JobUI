@@ -7,11 +7,15 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from core.job_scraper import JobScraper
 
 
-def test_studio(studio_id):
-    # Load studios.json
+def load_studios():
     studios_path = os.path.join(os.path.dirname(__file__), "config", "studios.json")
     with open(studios_path, "r", encoding="utf-8") as f:
         studios = json.load(f)
+    return studios
+
+
+def test_studio(studio_id):
+    studios = load_studios()
 
     # Find the studio
     studio = next((s for s in studios if s["id"] == studio_id), None)
@@ -48,3 +52,7 @@ if __name__ == "__main__":
         target_studio = sys.argv[1]
 
     test_studio(target_studio)
+
+    # studios = load_studios()
+    # for studio in studios:
+    #     print(studio["name"])
