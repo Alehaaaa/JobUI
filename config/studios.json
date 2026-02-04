@@ -883,5 +883,23 @@
                 "location": "location.display"
             }
         }
+    },
+    {
+        "id": "threedoubles",
+        "name": "3Doubles Producciones",
+        "logo_url": "https://www.notodoanimacion.es/wp-content/uploads/2026/01/logo-3Doubles-Producciones-S.L-3.webp",
+        "careers_url": "https://3doubles.factorial.es/#jobs",
+        "website": "https://3doubles.factorial.es/",
+        "scraping": {
+            "strategy": "html",
+            "container": "li.job-offer-item[data-job-postings-url]",
+            "map": {
+                "title": "div.factorial__headingFontFamily",
+                "link": "a.buttonSecondary",
+                "location": {
+                    "find_previous": "h3"
+                }
+            }
+        }
     }
 ]
