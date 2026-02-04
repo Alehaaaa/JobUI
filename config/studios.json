@@ -111,10 +111,25 @@
         }
     },
     {
-        "id": "sony",
+        "id": "sonypicturesanimation",
         "name": "Sony Pictures Animation",
         "logo_url": "https://worldvectorlogo.com/download/sony-pictures-animation-logo-2018.svg",
         "careers_url": "https://job-boards.greenhouse.io/sonypicturesanimation",
+        "scraping": {
+            "strategy": "html",
+            "container": "tr.job-post",
+            "map": {
+                "title": "p",
+                "link": "a",
+                "location": "p.body__secondary"
+            }
+        }
+    },
+    {
+        "id": "sonypicturesimageworks",
+        "name": "Sony Pictures Imageworks",
+        "logo_url": "https://www.imageworks.com/themes/custom/topplus/logo.svg",
+        "careers_url": "https://job-boards.greenhouse.io/sonypicturesimageworks",
         "scraping": {
             "strategy": "html",
             "container": "tr.job-post",
@@ -170,7 +185,8 @@
                 "link": {
                     "selector": "",
                     "attr": "data-url"
-                }
+                },
+                "location": ".jet-listing-dynamic-field__content"
             }
         }
     },
@@ -495,7 +511,7 @@
                 "title": "name",
                 "link": {
                     "path": "id",
-                    "prefix": "https://www.smartrecruiters.com/RodeoFX/"
+                    "prefix": "https://www.smartrecruiters.com/OutpostVFX/"
                 },
                 "location": "location.fullLocation"
             }
@@ -588,11 +604,10 @@
         "careers_url": "http://careers.digitaldomain.com/rss.php",
         "website": "https://digitaldomain.com/",
         "scraping": {
-            "strategy": "html",
-            "container": "item",
+            "strategy": "rss",
             "map": {
                 "title": {
-                    "selector": "title",
+                    "path": "title",
                     "split": {
                         "sep": ":",
                         "index": 0
@@ -600,15 +615,14 @@
                 },
                 "link": "link",
                 "location": {
-                    "selector": "title",
+                    "path": "title",
                     "split": {
                         "sep": ":",
                         "index": 1
                     }
                 },
                 "extra_link": {
-                    "selector": "description",
-                    "attr": "html",
+                    "path": "description",
                     "regex_link": "href=\"(.*?\\.pdf)\""
                 }
             }
@@ -703,9 +717,7 @@
             "method": "POST",
             "headers": {
                 "Accept": "application/json, text/plain, */*",
-                "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
-                "Referer": "https://flyingwildhog-open-positions-form.productive24.com/",
-                "Origin": "https://flyingwildhog-open-positions-form.productive24.com"
+                "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
             },
             "form_data": {
                 "code": "list",
@@ -719,6 +731,156 @@
                 "title": "offer_name",
                 "link": "url",
                 "location": "location"
+            }
+        }
+    },
+    {
+        "id": "brownbag",
+        "name": "Brown Bag Films",
+        "logo_url": "https://www.brownbagfilms.com/themes/custom/misti/logo.svg",
+        "website": "https://www.brownbagfilms.com/about-us/careers",
+        "careers_url": [
+            "https://milo-hr.my.salesforce-sites.com/recruit/fRecruit__ApplyJobList?portal=Toronto",
+            "https://milo-hr.my.salesforce-sites.com/recruit/fRecruit__ApplyJobList?portal=Dublin"
+        ],
+        "scraping": {
+            "strategy": "html",
+            "container": "tr.dataRow",
+            "map": {
+                "title": ".dataCell a",
+                "link": {
+                    "selector": ".dataCell a",
+                    "attr": "href",
+                    "prefix": "https://milo-hr.my.salesforce-sites.com"
+                },
+                "location": {
+                    "source": "url",
+                    "regex": "portal=([^&]+)"
+                }
+            }
+        }
+    },
+    {
+        "id": "ubisoft",
+        "name": "Ubisoft",
+        "logo_url": "https://playtest.ubisoft.com/Ubisoft_logo.png",
+        "careers_url": "https://avcvysejs1-dsn.algolia.net/1/indexes/*/queries?x-algolia-agent=Algolia%20for%20JavaScript%20(4.8.4)%3B%20Browser%20(lite)%3B%20JS%20Helper%20(3.11.0)%3B%20react%20(16.12.0)%3B%20react-instantsearch%20(6.8.3)&x-algolia-api-key=d2ec5782c4eb549092cfa4ed5062599a&x-algolia-application-id=AVCVYSEJS1",
+        "website": "https://www.ubisoft.com/en-us/company/careers/search?query=",
+        "scraping": {
+            "strategy": "json",
+            "method": "POST",
+            "payload": {
+                "requests": [
+                    {
+                        "indexName": "jobs_en-us_default",
+                        "params": "facets=%5B%22jobFamily%22%2C%22team%22%2C%22countryCode%22%2C%22cities%22%2C%22contractType%22%2C%22workFlexibility%22%2C%22graduateProgram%22%5D&highlightPostTag=%3C%2Fais-highlight-0000000000%3E&highlightPreTag=%3Cais-highlight-0000000000%3E&maxValuesPerFacet=100&page=0&query=&tagFilters=&hitsPerPage=1000"
+                    }
+                ]
+            },
+            "path": "results[0].hits[*]",
+            "map": {
+                "title": "title",
+                "link": "link",
+                "location": "city"
+            }
+        }
+    },
+    {
+        "id": "cinesite",
+        "name": "Cinesite",
+        "logo_url": "https://cinesite.com/wp-content/themes/cinesite/vt-images/header-logo.svg",
+        "careers_url": [
+            "https://cinesitelondon.bamboohr.com/careers/list",
+            "https://cinesitemontreal.bamboohr.com/careers/list",
+            "https://cinesitevancouver.bamboohr.com/careers/list"
+        ],
+        "scraping": {
+            "strategy": "json",
+            "path": "result[*]",
+            "map": {
+                "title": "jobOpeningName",
+                "link": "id",
+                "location": "location.city"
+            }
+        }
+    },
+    {
+        "id": "platige",
+        "name": "Platige Image",
+        "logo_url": "https://platige.com/wp-content/uploads/2023/03/cropped-PI_logo2.png",
+        "careers_url": "https://platige.com/careers/",
+        "scraping": {
+            "strategy": "html",
+            "container": ".career-block",
+            "map": {
+                "title": "h3",
+                "link": "a.career-btdwn",
+                "location": {
+                    "selector": "h3",
+                    "regex": "^([^:]+):",
+                    "default": "Warsaw"
+                },
+                "remove_location_from_title": true
+            }
+        }
+    },
+    {
+        "id": "riot",
+        "name": "Riot Games",
+        "logo_url": "https://frikiup.co/wp-content/uploads/2022/02/002_RG_2021_FULL_LOCKUP_OFFWHITE.png",
+        "careers_url": "https://www.riotgames.com/en/work-with-us",
+        "scraping": {
+            "strategy": "html",
+            "container": "li.job-row--body",
+            "map": {
+                "title": ".job-row__col--primary",
+                "link": "a.js-job-url",
+                "location": {
+                    "selector": ".job-row__col--secondary",
+                    "index": "2"
+                }
+            }
+        }
+    },
+    {
+        "id": "image-engine",
+        "name": "Image Engine",
+        "logo_url": "https://image-engine.com/wp-content/uploads/2018/06/Logo_White.png",
+        "careers_url": "https://imageengine.bamboohr.com/careers/list",
+        "scraping": {
+            "strategy": "json",
+            "path": "result[*]",
+            "map": {
+                "title": "jobOpeningName",
+                "link": "id",
+                "location": "location.city"
+            }
+        }
+    },
+    {
+        "id": "oneofus",
+        "name": "One of Us",
+        "logo_url": "https://workable-application-form.s3.us-east-1.amazonaws.com/advanced/production/667018513e6590e6b6d8cb1f/d17fe696-7624-9b3f-ab4a-0ae70893f65c",
+        "careers_url": "https://apply.workable.com/api/v3/accounts/one-of-us/jobs",
+        "website": "https://apply.workable.com/one-of-us/?lng=en",
+        "scraping": {
+            "strategy": "json",
+            "method": "POST",
+            "payload": {
+                "query": "",
+                "department": [],
+                "location": [],
+                "workplace": [],
+                "worktype": []
+            },
+            "path": "results[*]",
+            "map": {
+                "title": "title",
+                "link": {
+                    "path": "shortcode",
+                    "prefix": "https://apply.workable.com/one-of-us/j/"
+                },
+                "location": "location.display"
             }
         }
     }

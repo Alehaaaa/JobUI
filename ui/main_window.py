@@ -25,7 +25,7 @@ from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
 from maya.OpenMayaUI import MQtUtil  # type: ignore
 
 from .flow_layout import FlowLayout
-from .widgets import WaitingSpinner, ClickableLabel, OpenMenu
+from .widgets import WaitingSpinner, ClickableLabel, OpenMenu, EmptyStateWidget
 from .styles import (
     JOB_WIDGET_STYLE,
     STUDIO_WIDGET_STYLE,
@@ -348,15 +348,21 @@ class StudioWidget(QtWidgets.QFrame):
             self.no_match_label.setStyleSheet(NO_RESULTS_STYLE)
             self.no_match_label.hide()
             self.scroll_layout.addWidget(self.no_match_label)
-
         self.scroll_layout.addStretch()  # Ensure top alignment
 
-    def filter_jobs(self, pattern):
+    def filter_jobs(self, pattern_or_regex):
+        """
+        Filters job widgets based on a string pattern or pre-compiled regex.
+        Returns the number of matching jobs.
+        """
         match_count = 0
-        try:
-            regex = re.compile(pattern, re.IGNORECASE)
-        except re.error:
-            regex = re.compile(re.escape(pattern), re.IGNORECASE)
+        if isinstance(pattern_or_regex, str):
+            try:
+                regex = re.compile(pattern_or_regex, re.IGNORECASE)
+            except re.error:
+                regex = re.compile(re.escape(pattern_or_regex), re.IGNORECASE)
+        else:
+            regex = pattern_or_regex
 
         for w in self.job_widgets:
             title = w.job_data.get("title", "")
@@ -368,7 +374,9 @@ class StudioWidget(QtWidgets.QFrame):
 
         if self.no_match_label:
             if match_count == 0 and len(self.job_widgets) > 0:
-                self.no_match_label.setText('No jobs matching "{}"'.format(pattern))
+                # Use pattern string for label if available
+                display_text = pattern_or_regex.pattern if not isinstance(pattern_or_regex, str) else pattern_or_regex
+                self.no_match_label.setText(f'No jobs matching "{display_text}"')
                 self.no_match_label.show()
             else:
                 self.no_match_label.hide()
@@ -513,29 +521,20 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         self.scroll_area.setFrameShape(QtWidgets.QFrame.NoFrame)
         self.scroll_area.setStyleSheet(SCROLL_AREA_STYLE)
 
+        # Use a StackedWidget to switch between Grid and Placeholder
+        self.content_stack = QtWidgets.QStackedWidget()
+
         self.studios_container = QtWidgets.QWidget()
-        # Use FlowLayout here
         self.studios_layout = FlowLayout(self.studios_container, margin=10)
+        self.content_stack.addWidget(self.studios_container)
 
-        # -- Placeholders --
-        self.lbl_no_studios_setup = QtWidgets.QLabel("No studios setup. Go to Options > Add Studio... to get started.")
-        self.lbl_no_studios_setup.setAlignment(QtCore.Qt.AlignCenter)
-        self.lbl_no_studios_setup.setStyleSheet(NO_RESULTS_STYLE)
-        self.lbl_no_studios_setup.setWordWrap(True)
-        self.lbl_no_studios_setup.hide()
+        self.empty_state_widget = EmptyStateWidget()
+        self.empty_state_widget.actionRequested.connect(self._on_empty_state_action)
+        self.empty_state_widget.set_loading()
+        self.content_stack.addWidget(self.empty_state_widget)
 
-        self.lbl_no_studios_enabled = QtWidgets.QLabel("No studios enabled. Enable them in the Studios menu.")
-        self.lbl_no_studios_enabled.setAlignment(QtCore.Qt.AlignCenter)
-        self.lbl_no_studios_enabled.setStyleSheet(NO_RESULTS_STYLE)
-        self.lbl_no_studios_enabled.setWordWrap(True)
-        self.lbl_no_studios_enabled.hide()
-
-        self.lbl_no_matches = QtWidgets.QLabel("No studios match your filter.")
-        self.lbl_no_matches.setAlignment(QtCore.Qt.AlignCenter)
-        self.lbl_no_matches.setStyleSheet(NO_RESULTS_STYLE)
-        self.lbl_no_matches.hide()
-
-        self.scroll_area.setWidget(self.studios_container)
+        self.content_stack.setCurrentWidget(self.empty_state_widget)
+        self.scroll_area.setWidget(self.content_stack)
         main_layout.addWidget(self.scroll_area)
 
         # Menu (Keeping menu for manual refresh of cached images if needed)
@@ -666,26 +665,66 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
                 self._do_search()
                 return
 
-    def _update_placeholders(self):
-        """Updates the visibility of empty state placeholders."""
+    def _update_placeholders(self, visible_count=0, enabled_count=0, search_text=""):
+        """Updates the visibility and state of the empty state widget."""
         studios = self.config_manager.get_studios()
         num_studios = len(studios)
         has_enabled = any(self.config_manager.is_studio_enabled(s.get("id")) for s in studios)
 
-        self.lbl_no_studios_setup.setVisible(num_studios == 0)
-        self.lbl_no_studios_enabled.setVisible(num_studios > 0 and not has_enabled)
+        if num_studios == 0:
+            self.empty_state_widget.set_no_studios()
+            self.content_stack.setCurrentWidget(self.empty_state_widget)
+        elif not has_enabled:
+            self.empty_state_widget.set_no_enabled_studios()
+            self.content_stack.setCurrentWidget(self.empty_state_widget)
+        elif visible_count == 0:
+            # Check if we have ANY jobs cached at all in enabled studios.
+            # This helps distinguish between 'Just started' and 'Found nothing'.
+            total_jobs_cached = sum(
+                len(self.config_manager.get_studio_jobs(s.get("id")) or [])
+                for s in studios
+                if self.config_manager.is_studio_enabled(s.get("id"))
+            )
 
-        if self.lbl_no_studios_setup.isVisible():
-            self.studios_layout.addWidget(self.lbl_no_studios_setup)
-        if self.lbl_no_studios_enabled.isVisible():
-            self.studios_layout.addWidget(self.lbl_no_studios_enabled)
+            if search_text.strip():
+                self.empty_state_widget.set_no_results(search_text)
+            elif total_jobs_cached == 0:
+                # If we have enabled studios but haven't seen a single job yet,
+                # keep showing the loading state (unless it's a search)
+                self.empty_state_widget.set_loading()
+            else:
+                self.empty_state_widget.set_no_jobs_found()
+
+            self.content_stack.setCurrentWidget(self.empty_state_widget)
+        else:
+            # At least one studio is visible in the flow layout
+            self.content_stack.setCurrentWidget(self.studios_container)
+
+    def _on_empty_state_action(self):
+        """Unified handler for actions from the empty state widget."""
+        studios = self.config_manager.get_studios()
+        num_studios = len(studios)
+        has_enabled = any(self.config_manager.is_studio_enabled(s.get("id")) for s in studios)
+        search_text = self.search_input.text().strip()
+
+        if num_studios == 0:
+            self.open_add_studio_dialog()
+        elif not has_enabled:
+            # Open studios menu
+            self.studios_menu.exec_(QtGui.QCursor.pos())
+        elif search_text:
+            self.search_input.clear()
+        else:
+            self.config_manager.fetch_all_jobs()
 
     def refresh_studios_list(self):
         # Helper to clear layout widgets
+        # We want to preserve our placeholder widget instead of deleting it
         while self.studios_layout.count():
             item = self.studios_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
 
         self.studio_widgets = []
         studios = self.config_manager.get_studios()
@@ -732,8 +771,14 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         visible_count = 0
         enabled_count = 0
 
+        # Pre-compile regex once for all studios
+        try:
+            regex = re.compile(text, re.IGNORECASE)
+        except re.error:
+            regex = re.compile(re.escape(text), re.IGNORECASE)
+
         for sw in self.studio_widgets:
-            match_count = sw.filter_jobs(text)
+            match_count = sw.filter_jobs(regex)
 
             # Check primary enabled state
             sid = sw.studio_data.get("id")
@@ -749,15 +794,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
             else:
                 sw.hide()
 
-        # Update Match Placeholder
-        # Only show "No matches" if we actually have enabled studios but none are visible
-        matches = enabled_count > 0 and visible_count == 0
-        self.lbl_no_matches.setVisible(matches)
-        if matches:
-            self.lbl_no_matches.setText('No studios matching "{}"'.format(text))
-            self.studios_layout.addWidget(self.lbl_no_matches)
-
-        self._update_placeholders()
+        self._update_placeholders(visible_count, enabled_count, text)
         self.update_studios_menu_checks()
 
         self.studios_layout.invalidate()

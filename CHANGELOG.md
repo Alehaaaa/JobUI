@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.5] - 2026-02-04
+
+### Added
+- **Major Studio Integrations**:
+  - **Ubisoft**: Algolia API integration with custom payloads and pagination handling.
+  - **Cinesite**: BambooHR JSON integration covering London, Montreal, and Vancouver.
+  - **Image Engine**: BambooHR JSON integration.
+  - **Riot Games**: Robust HTML scraping for their global careers portal.
+  - **Platige Image**: Smart extraction of location from titles with fallback logic.
+  - **One of Us**: Workable API integration with POST strategy.
+- **Scraper Core Enhancements**:
+  - **Mapping Fallbacks**: Support for a `default` field in mappings.
+  - **Automatic Filtering**: Added logic to skip "Unknown" or generic placeholder job postings.
+- **UI & UX Improvements**:
+  - **Refined Empty States**: Better handling of "No results", "No enabled studios", and "Initial loading" states.
+  - **Zero-Latency Placeholders**: `EmptyStateWidget` now initializes instantly with a "Checking for jobs..." state to eliminate UI flicker.
+
+### Changed
+- **Branding Updates**: Updated Scanline VFX to **Eyeline Studios**.
+- **Performance**: Optimized logo worker to be more resilient to network timeouts.
+
+### Fixed
+- **Logo Downloads**: Resolved 403 Forbidden error during icon download.
+- **Platige Mappings**: Fixed title/location separation logic.
+- **Flying Wild Hog**: Cleaned up unnecessary headers.
+
 ## [0.1.3] - 2026-02-02
 
 ### Added

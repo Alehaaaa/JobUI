@@ -161,16 +161,17 @@ class StudioDialog(QtWidgets.QDialog):
         mapping_group = QtWidgets.QGroupBox("Field Mappings")
         mapping_vbox = QtWidgets.QVBoxLayout(mapping_group)
 
-        self.field_title = self._add_field(mapping_vbox, "Title")
+        self.field_title, self.field_title_opts = self._add_field(mapping_vbox, "Title", options=["source"])
         self.field_link, self.field_link_opts = self._add_field(
-            mapping_vbox, "Link", options=["attr", "prefix", "suffix"]
+            mapping_vbox, "Link", options=["source", "attr", "prefix", "suffix"]
         )
         self.field_location, self.field_loc_opts = self._add_field(
-            mapping_vbox, "Location", options=["index", "regex", "suffix", "remove_from_title"]
+            mapping_vbox, "Location", options=["source", "index", "regex", "suffix", "remove_from_title"]
         )
         self.find_prev_widget, self.field_find_prev = self._add_labelled_field(mapping_vbox, "Find Prev (HTML):")
 
         map_vbox.addWidget(mapping_group)
+        self.tab_mapping.setLayout(map_vbox)
         self.tabs.addTab(self.tab_mapping, "Mappings")
 
         # --- TAB: Request ---
@@ -256,6 +257,19 @@ class StudioDialog(QtWidgets.QDialog):
                     cb.setStyleSheet("font-size: 10px;")
                     opt_h.addWidget(cb)
                     opt_widgets[opt] = cb
+                elif opt == "source":
+                    h = QtWidgets.QHBoxLayout()
+                    h.setSpacing(3)
+                    lbl = QtWidgets.QLabel("source:")
+                    lbl.setStyleSheet("font-size: 10px; color: #888;")
+                    combo = QtWidgets.QComboBox()
+                    combo.addItems(["item", "url"])
+                    combo.setFixedHeight(18)
+                    combo.setStyleSheet("font-size: 10px;")
+                    h.addWidget(lbl)
+                    h.addWidget(combo)
+                    opt_h.addLayout(h)
+                    opt_widgets[opt] = combo
                 else:
                     h = QtWidgets.QHBoxLayout()
                     h.setSpacing(3)
@@ -296,22 +310,55 @@ class StudioDialog(QtWidgets.QDialog):
             return
 
         self.name_input.setText(self.studio_data.get("name", ""))
-        self.logo_input.setText(self.studio_data.get("logo_url", ""))
-        self.careers_input.setText(self.studio_data.get("careers_url", ""))
+        logo_url = self.studio_data.get("logo_url", "")
+        self.logo_input.setText(logo_url)
+
+        c_url = self.studio_data.get("careers_url", "")
+        if isinstance(c_url, list):
+            self.careers_input.setText(", ".join(c_url))
+        else:
+            self.careers_input.setText(str(c_url))
+
         self.website_input.setText(self.studio_data.get("website", ""))
 
         scrap = self.studio_data.get("scraping", {})
         mapping = scrap.get("map", {})
         strat = scrap.get("strategy", "html")
 
+        if scrap.get("url_location_regex"):
+            # Migration path: if old field exists, put it in location source
+            self.field_location.setText("")
+            self.field_loc_opts["source"].setCurrentText("url")
+            self.field_loc_opts["regex"].setText(scrap.get("url_location_regex"))
+
         if strat == "json":
             self.radio_json.setChecked(True)
             self.json_path.setText(scrap.get("path", ""))
-            self.field_title.setText(mapping.get("title", ""))
-            self.field_location.setText(mapping.get("location", ""))
+
+            # Title
+            t = mapping.get("title", "")
+            if isinstance(t, dict):
+                self.field_title.setText(t.get("path", ""))
+                if "source" in t:
+                    self.field_title_opts["source"].setCurrentText(t["source"])
+            else:
+                self.field_title.setText(str(t))
+
+            # Location
+            loc = mapping.get("location", "")
+            if isinstance(loc, dict):
+                self.field_location.setText(loc.get("path", ""))
+                if "source" in loc:
+                    self.field_loc_opts["source"].setCurrentText(loc["source"])
+                self.field_loc_opts["regex"].setText(loc.get("regex", ""))
+            else:
+                self.field_location.setText(str(loc))
+
             link = mapping.get("link", "")
             if isinstance(link, dict):
                 self.field_link.setText(link.get("path", ""))
+                if "source" in link:
+                    self.field_link_opts["source"].setCurrentText(link["source"])
                 self.field_link_opts["prefix"].setText(link.get("prefix", ""))
                 self.field_link_opts["suffix"].setText(link.get("suffix", ""))
             else:
@@ -328,6 +375,8 @@ class StudioDialog(QtWidgets.QDialog):
             if isinstance(t, dict):
                 self.field_title.setText(t.get("selector", ""))
                 self.field_find_prev.setText(t.get("find_previous", ""))
+                if "source" in t:
+                    self.field_title_opts["source"].setCurrentText(t["source"])
             else:
                 self.field_title.setText(str(t))
 
@@ -338,6 +387,8 @@ class StudioDialog(QtWidgets.QDialog):
                 self.field_link_opts["attr"].setText(link.get("attr", "href"))
                 self.field_link_opts["prefix"].setText(link.get("prefix", ""))
                 self.field_link_opts["suffix"].setText(link.get("suffix", ""))
+                if "source" in link:
+                    self.field_link_opts["source"].setCurrentText(link["source"])
             else:
                 self.field_link.setText(str(link))
 
@@ -348,6 +399,8 @@ class StudioDialog(QtWidgets.QDialog):
                 self.field_loc_opts["index"].setText(loc.get("index", ""))
                 self.field_loc_opts["regex"].setText(loc.get("regex", ""))
                 self.field_loc_opts["suffix"].setText(loc.get("suffix", ""))
+                if "source" in loc:
+                    self.field_loc_opts["source"].setCurrentText(loc["source"])
             else:
                 self.field_location.setText(str(loc))
             self.field_loc_opts["remove_from_title"].setChecked(mapping.get("remove_location_from_title", False))
@@ -379,45 +432,53 @@ class StudioDialog(QtWidgets.QDialog):
 
         is_html = self.radio_html.isChecked()
         scrap = {"strategy": "html" if is_html else "json"}
-        mapping = {"title": self.field_title.text().strip()}
+        mapping = {}
 
-        l_sel = self.field_link.text().strip()
-        l_at = self.field_link_opts["attr"].text().strip()
-        l_pf = self.field_link_opts["prefix"].text().strip()
-        l_sf = self.field_link_opts["suffix"].text().strip()
-        if l_at or l_pf or l_sf:
-            mapping["link"] = {"selector" if is_html else "path": l_sel}
-            if l_at and l_at != "text":
-                mapping["link"]["attr"] = l_at
-            if l_pf:
-                mapping["link"]["prefix"] = l_pf
-            if l_sf:
-                mapping["link"]["suffix"] = l_sf
-        else:
-            mapping["link"] = l_sel
+        def build_map(input_field, options, key_name):
+            val = input_field.text().strip()
+            src = options.get("source").currentText() if "source" in options else "item"
 
-        loc_sel = self.field_location.text().strip()
-        loc_i = self.field_loc_opts["index"].text().strip()
-        loc_r = self.field_loc_opts["regex"].text().strip()
-        loc_s = self.field_loc_opts["suffix"].text().strip()
-        if loc_i or loc_r or loc_s:
-            mapping["location"] = {"selector" if is_html else "path": loc_sel}
-            if loc_i:
-                mapping["location"]["index"] = loc_i
-            if loc_r:
-                mapping["location"]["regex"] = loc_r
-            if loc_s:
-                mapping["location"]["suffix"] = loc_s
-        else:
-            mapping["location"] = loc_sel
+            # Build object if any advanced option is set
+            is_complex = src != "item"
+            for k, v in options.items():
+                if k == "source":
+                    continue
+                if isinstance(v, QtWidgets.QLineEdit) and v.text().strip():
+                    is_complex = True
+
+            if not is_complex:
+                return val
+
+            m = {("selector" if is_html else "path"): val}
+            if src != "item":
+                m["source"] = src
+            for k, v in options.items():
+                if k == "source":
+                    continue
+                if isinstance(v, QtWidgets.QLineEdit):
+                    txt = v.text().strip()
+                    if txt:
+                        m[k] = txt
+                elif isinstance(v, QtWidgets.QCheckBox):
+                    # remove_from_title is handled specially in some cases but let's see
+                    pass
+            return m
+
+        mapping["title"] = build_map(self.field_title, self.field_title_opts, "title")
+        mapping["link"] = build_map(self.field_link, self.field_link_opts, "link")
+        mapping["location"] = build_map(self.field_location, self.field_loc_opts, "location")
+
         if self.field_loc_opts["remove_from_title"].isChecked():
             mapping["remove_location_from_title"] = True
 
         if is_html:
             fp = self.field_find_prev.text().strip()
             if fp:
-                mapping["title"] = {"selector": mapping["title"], "find_previous": fp}
-            scrap["container"] = self.html_container.text().strip()
+                # If title is already a dict from build_map, update it. Otherwise, create a new dict.
+                if isinstance(mapping["title"], dict):
+                    mapping["title"]["find_previous"] = fp
+                else:
+                    mapping["title"] = {"selector": mapping["title"], "find_previous": fp}
         else:
             scrap["path"] = self.json_path.text().strip()
             fk = self.filter_key.text().strip()
@@ -461,11 +522,21 @@ class StudioDialog(QtWidgets.QDialog):
         if not self.studio_data:
             self.studio_data = {"id": sid}
 
+        c_url_text = self.careers_input.text().strip()
+        if "," in c_url_text or ";" in c_url_text:
+            # Split by comma or semicolon and clean up
+            import re
+
+            c_urls = [u.strip() for u in re.split(r"[,;]", c_url_text) if u.strip()]
+            careers_url = c_urls if len(c_urls) > 1 else c_urls[0] if c_urls else ""
+        else:
+            careers_url = c_url_text
+
         self.studio_data.update(
             {
                 "name": name,
                 "logo_url": self.logo_input.text().strip(),
-                "careers_url": self.careers_input.text().strip(),
+                "careers_url": careers_url,
                 "website": self.website_input.text().strip(),
                 "scraping": scrap,
             }

@@ -56,7 +56,10 @@ class LogoWorker(QtCore.QThread):
             req = urllib.request.Request(
                 logo_url,
                 headers={
-                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Referer": "https://www.google.com/",
                 },
             )
             with urllib.request.urlopen(req, context=ctx, timeout=10) as response:
@@ -484,9 +487,7 @@ class JobWorker(QtCore.QThread):
             max_workers = 1
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_studio = {
-                executor.submit(self.scraper.fetch_jobs, studio): studio for studio in self.studios
-            }
+            future_to_studio = {executor.submit(self.scraper.fetch_jobs, studio): studio for studio in self.studios}
 
             for future in concurrent.futures.as_completed(future_to_studio):
                 if not self._is_running:

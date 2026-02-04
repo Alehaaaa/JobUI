@@ -9,9 +9,11 @@ The core application is built using **Python** and **PySide6** and is primarily 
 The main codebase is located in the root directory.
 
 ### Features
-- **Studio Scrapers**: Configurable scrapers for major VFX studios (Disney, ILM, DNEG, etc.).
-- **Job Management**: View, filter, and track job listings.
-- **Maya Integration**: Dockable UI within Maya.
+- **Studio Scrapers**: Configurable scrapers for 50+ major and boutique VFX/Animation studios (Disney, ILM, Ubisoft, Riot, Cinesite, etc.).
+- **Smart Parsing**: Automatic location removal from titles, punctuation cleanup, and multi-strategy support (JSON, HTML, RSS).
+- **Fast UI**: Instant-load placeholders and a zero-latency responsive grid.
+- **Job Management**: View, filter, and track job listings globally.
+- **Maya Integration**: Dockable UI within Maya with custom styling.
 
 ## Installation
 
