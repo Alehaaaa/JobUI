@@ -655,9 +655,11 @@
         "logo_url": "https://careers.wetafx.co.nz/assets/logo-white-aba240515c42f0dfe83af315f98f2f894f5e72c330e4476a730e71247cb5cad2.png",
         "careers_url": "https://careers.wetafx.co.nz/jobs",
         "scraping": {
-            "strategy": "html",
-            "strategy_override": "json_text",
+            "strategy": "json_text",
             "container": "script",
+            "json_text": {
+                "variable": "jobsData"
+            },
             "map": {
                 "title": "name_with_override",
                 "link": {

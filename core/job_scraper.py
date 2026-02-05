@@ -45,6 +45,8 @@ class JobScraper:
                     jobs = self.fetch_json(studio_for_url)
                 elif strategy == "html":
                     jobs = self.fetch_html(studio_for_url)
+                elif strategy == "json_text":
+                    jobs = self.fetch_json_text(studio_for_url)
                 elif strategy == "rss":
                     jobs = self.fetch_rss(studio_for_url)
                 else:
@@ -111,6 +113,30 @@ class JobScraper:
             val = m["default"]
 
         return val
+
+    def _finalize_job(self, title, link, location, extra_link, studio, careers_url, mapping):
+        """Common cleanup and normalization for all scraping strategies."""
+        title = self._clean_text(title)
+        location = self._clean_text(location)
+
+        if mapping.get("remove_location_from_title") and location:
+            title = self._remove_location_from_title(title, location)
+            title = self._clean_text(title)
+
+        if not title or title.lower() in ["view job", "details", "read more", "apply", "careers", "unknown"]:
+            return None
+
+        if not link:
+            link = careers_url
+        elif not str(link).startswith("http"):
+            base = studio.get("website") or careers_url
+            link = urllib.parse.urljoin(base, str(link))
+
+        if extra_link and not str(extra_link).startswith("http"):
+            base = studio.get("website") or careers_url
+            extra_link = urllib.parse.urljoin(base, str(extra_link))
+
+        return {"title": title, "link": link, "location": location, "extra_link": extra_link}
 
     def _remove_location_from_title(self, title, location):
         """Removes the location from the title and cleans up orphaned separators like ' - - '."""
@@ -195,38 +221,81 @@ class JobScraper:
         jobs = []
         for item in items:
 
-            def get_val(field_key, default=""):
+            def get_val(field_key):
                 m = mapping.get(field_key)
                 if not m:
-                    return default
-
-                # Support source="url" for direct URL inference
+                    return ""
                 if isinstance(m, dict) and m.get("source") == "url":
                     val = careers_url
                 else:
                     path = m.get("path") if isinstance(m, dict) else m
-                    val = str(extract_json(item, path, default) or default)
-
+                    val = str(extract_json(item, path, "") or "")
                 return self._apply_mapping_logic(val, m)
 
-            title = get_val("title", "Unknown")
-            link = get_val("link", "")
-            location = get_val("location", "")
-
-            title = self._clean_text(title)
-
-            # Support remove_location_from_title in JSON too
-            if mapping.get("remove_location_from_title") and location:
-                title = self._remove_location_from_title(title, location)
-                title = self._clean_text(title)
-
-            if link and not link.startswith("http"):
-                base = studio.get("website") or careers_url
-                link = urllib.parse.urljoin(base, link)
-
-            jobs.append({"title": title, "link": link, "location": location})
+            job = self._finalize_job(
+                title=get_val("title"),
+                link=get_val("link"),
+                location=get_val("location"),
+                extra_link=get_val("extra_link"),
+                studio=studio,
+                careers_url=careers_url,
+                mapping=mapping,
+            )
+            if job:
+                jobs.append(job)
 
         return jobs
+
+    def fetch_json_text(self, studio):
+        careers_url = studio.get("careers_url")
+        scraping = studio.get("scraping", {})
+
+        response = self.session.get(careers_url)
+        response.raise_for_status()
+
+        jt_cfg = scraping.get("json_text", {})
+        json_regex = jt_cfg.get("regex")
+        json_var = jt_cfg.get("variable")
+
+        if json_regex:
+            regex = json_regex
+        elif json_var:
+            regex = r"(?:const|var|let)\s+" + json_var + r"\s*=\s*(\[.*\])\s*;?"
+        else:
+            regex = r"const jobsData\s*=\s*(\[.*\])\s*;?"
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        text = ""
+
+        # 1. Search in scripts matching container or all script tags
+        container_sel = scraping.get("container", "script")
+        for s in soup.select(container_sel):
+            contents = s.get_text()
+            if re.search(regex, contents, re.DOTALL):
+                text = contents
+                break
+
+        # 2. Fallback: Search all HTML if not found in scripts
+        if not text:
+            if re.search(regex, response.text, re.DOTALL):
+                text = response.text
+
+        if not text:
+            logger.error(f"Could not find JSON text matching {regex}")
+            return []
+
+        match = re.search(regex, text, re.DOTALL)
+        if not match:
+            return []
+
+        try:
+            import json
+
+            items = json.loads(match.group(1))
+            return self._parse_json_items(items, studio, careers_url)
+        except Exception as e:
+            logger.error(f"Error parsing JSON: {e}")
+            return []
 
     def fetch_html(self, studio):
         careers_url = studio.get("careers_url")
@@ -257,98 +326,53 @@ class JobScraper:
             text = str(container) if split_cfg.get("use_html") else container.get_text("\n")
             delim = split_cfg.get("delimiter", "<br>")
             items = [BeautifulSoup(p.strip(), "html.parser") for p in text.split(delim) if p.strip()]
-        elif scraping.get("strategy_override") == "json_text":
-            # Extract JSON from a script tag or text content
-            text = ""
-            regex = scraping.get("json_regex", r"const jobsData\s*=\s*(\[.*?\])\s*;?\n")
-            target = soup.select_one(container_sel)
-            if target:
-                text = target.get_text()
-            else:
-                # Fallback: search all script tags for the pattern
-                for s in soup.find_all("script"):
-                    contents = s.get_text()
-                    if re.search(regex, contents, re.DOTALL):
-                        text = contents
-                        break
-
-            if not text:
-                logger.error(f"Could not find JSON text matching {regex} in any script tag")
-                return []
-
-            match = re.search(regex, text, re.DOTALL)
-            if not match:
-                logger.warning(f"Could not find JSON matching {regex}")
-                return []
-            try:
-                import json
-
-                items = json.loads(match.group(1))
-            except Exception as e:
-                logger.error(f"Error parsing JSON: {e}")
-                return []
-
-            # Since items are now dicts from JSON, we use the JSON mapping logic
-            return self._parse_json_items(items, studio, careers_url)
         else:
             items = extract_items_html(soup, container_sel)
 
         jobs = []
-
         for item in items:
 
-            def get_val(field_key, default="", def_attr="text"):
+            def get_val(field_key, def_attr="text"):
                 m = mapping.get(field_key)
                 if m is None:
-                    return default
-
-                # Support source="url"
+                    return ""
                 if isinstance(m, dict) and m.get("source") == "url":
                     val = careers_url
                 elif isinstance(m, dict) and "find_previous" in m:
                     node = item.find_previous(m["find_previous"])
-                    return node.get_text(separator=" ", strip=True) if node else default
+                    return node.get_text(separator=" ", strip=True) if node else ""
                 else:
                     selector = m.get("selector") if isinstance(m, dict) else m
                     attr = m.get("attr", def_attr) if isinstance(m, dict) else def_attr
-                    val = extract_html(
-                        item,
-                        selector,
-                        attr=attr,
-                        default=default,
-                        index=m.get("index") if isinstance(m, dict) else None,
-                    )
+                    val = extract_html(item, selector, attr=attr, index=m.get("index") if isinstance(m, dict) else None)
+                return self._apply_mapping_logic(str(val or ""), m)
 
-                return self._apply_mapping_logic(str(val or default), m)
+            # Strategy-specific fallback (Little Zoo)
+            raw_title = get_val("title")
+            if not raw_title and scraping.get("container", "").endswith("h2"):
+                raw_title = item.get_text(strip=True)
 
-            title = get_val("title", "Unknown")
-            if title.lower() in ["view job", "details", "read more", "apply", "careers", "unknown"]:
-                continue
-
-            link = get_val("link", "", "href")
-            location = self._clean_text(get_val("location", ""))
-
-            title = self._clean_text(title)
-
-            if mapping.get("remove_location_from_title") and location:
-                title = self._remove_location_from_title(title, location)
-                title = self._clean_text(title)
-
-            # Extra Link
-            extra_link = ""
-            extra_cfg = mapping.get("extra_link")
-            if isinstance(extra_cfg, dict):
-                raw = get_val("extra_link", "", "html")
-                match = re.search(extra_cfg.get("regex_link", ""), raw)
-                if match:
-                    extra_link = match.group(1) if match.groups() else match.group(0)
-
-            if not link:
-                link = careers_url
-            elif not str(link).startswith("http"):
-                link = urllib.parse.urljoin(studio.get("website") or careers_url, str(link))
-
-            jobs.append({"title": title, "link": link, "location": location, "extra_link": extra_link})
+            job = self._finalize_job(
+                title=raw_title,
+                link=get_val("link", "href"),
+                location=get_val("location"),
+                extra_link=get_val("extra_link", "html"),
+                studio=studio,
+                careers_url=careers_url,
+                mapping=mapping,
+            )
+            if job:
+                # Handle extra_link regex if needed
+                if job.get("extra_link") and isinstance(mapping.get("extra_link"), dict):
+                    extra_cfg = mapping["extra_link"]
+                    match = re.search(extra_cfg.get("regex_link", ""), job["extra_link"])
+                    if match:
+                        job["extra_link"] = match.group(1) if match.groups() else match.group(0)
+                        if not job["extra_link"].startswith("http"):
+                            job["extra_link"] = urllib.parse.urljoin(
+                                studio.get("website") or careers_url, job["extra_link"]
+                            )
+                jobs.append(job)
 
         return jobs
 
@@ -392,32 +416,26 @@ class JobScraper:
                     return node.get_text(strip=True)
                 return str(extract_html(item, m, attr="text", default=""))
 
-            title = self._clean_text(get_val("title", "title") or "Unknown")
-            link = get_val("link", "link")
-            location = self._clean_text(get_val("location", "description"))
-
-            if mapping.get("remove_location_from_title") and location:
-                title = self._remove_location_from_title(title, location)
-                title = self._clean_text(title)
-
-            # Fallback for some common RSS link patterns
-            if not link or "application.php" not in link:
-                match = re.search(r'https?://[^\s<>"]+application\.php[^\s<>"]+', str(item))
-                if match:
-                    link = match.group(0)
-
-            # Extra Link
-            extra_link = ""
-            extra_cfg = mapping.get("extra_link")
-            if isinstance(extra_cfg, dict):
-                raw = get_val("extra_link", "description")
-                match = re.search(extra_cfg.get("regex_link", ""), raw)
-                if match:
-                    extra_link = match.group(1) if match.groups() else match.group(0)
-
-            if link and not link.startswith("http"):
-                link = urllib.parse.urljoin(studio.get("website") or rss_url, link)
-
-            jobs.append({"title": title, "link": link, "location": location, "extra_link": extra_link})
+            job = self._finalize_job(
+                title=get_val("title", "title"),
+                link=get_val("link", "link"),
+                location=get_val("location", "description"),
+                extra_link=get_val("extra_link", "description"),
+                studio=studio,
+                careers_url=rss_url,
+                mapping=mapping,
+            )
+            if job:
+                # Handle extra_link regex if needed
+                if job.get("extra_link") and isinstance(mapping.get("extra_link"), dict):
+                    extra_cfg = mapping["extra_link"]
+                    match = re.search(extra_cfg.get("regex_link", ""), job["extra_link"])
+                    if match:
+                        job["extra_link"] = match.group(1) if match.groups() else match.group(0)
+                        if not job["extra_link"].startswith("http"):
+                            job["extra_link"] = urllib.parse.urljoin(
+                                studio.get("website") or rss_url, job["extra_link"]
+                            )
+                jobs.append(job)
 
         return jobs
