@@ -151,7 +151,6 @@ class JobScraper:
     def fetch_json(self, studio):
         careers_url = studio.get("careers_url")
         scraping = studio.get("scraping", {})
-        mapping = scraping.get("map", {})
 
         # Request
         method = scraping.get("method", "GET").upper()
@@ -179,6 +178,12 @@ class JobScraper:
             return []
         if not isinstance(items, list):
             items = [items]
+
+        return self._parse_json_items(items, studio, careers_url)
+
+    def _parse_json_items(self, items, studio, careers_url):
+        scraping = studio.get("scraping", {})
+        mapping = scraping.get("map", {})
 
         # Filter
         filter_cfg = scraping.get("filter")
@@ -252,6 +257,39 @@ class JobScraper:
             text = str(container) if split_cfg.get("use_html") else container.get_text("\n")
             delim = split_cfg.get("delimiter", "<br>")
             items = [BeautifulSoup(p.strip(), "html.parser") for p in text.split(delim) if p.strip()]
+        elif scraping.get("strategy_override") == "json_text":
+            # Extract JSON from a script tag or text content
+            text = ""
+            regex = scraping.get("json_regex", r"const jobsData\s*=\s*(\[.*?\])\s*;?\n")
+            target = soup.select_one(container_sel)
+            if target:
+                text = target.get_text()
+            else:
+                # Fallback: search all script tags for the pattern
+                for s in soup.find_all("script"):
+                    contents = s.get_text()
+                    if re.search(regex, contents, re.DOTALL):
+                        text = contents
+                        break
+
+            if not text:
+                logger.error(f"Could not find JSON text matching {regex} in any script tag")
+                return []
+
+            match = re.search(regex, text, re.DOTALL)
+            if not match:
+                logger.warning(f"Could not find JSON matching {regex}")
+                return []
+            try:
+                import json
+
+                items = json.loads(match.group(1))
+            except Exception as e:
+                logger.error(f"Error parsing JSON: {e}")
+                return []
+
+            # Since items are now dicts from JSON, we use the JSON mapping logic
+            return self._parse_json_items(items, studio, careers_url)
         else:
             items = extract_items_html(soup, container_sel)
 

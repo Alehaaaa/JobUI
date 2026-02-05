@@ -653,18 +653,18 @@
         "id": "weta",
         "name": "Wētā FX",
         "logo_url": "https://careers.wetafx.co.nz/assets/logo-white-aba240515c42f0dfe83af315f98f2f894f5e72c330e4476a730e71247cb5cad2.png",
-        "careers_url": "https://careers.wetafx.co.nz/",
+        "careers_url": "https://careers.wetafx.co.nz/jobs",
         "scraping": {
             "strategy": "html",
-            "container": "div.flex-wrap.justify-around.hidden.md\\:flex div.card",
+            "strategy_override": "json_text",
+            "container": "script:contains('const jobsData')",
             "map": {
-                "title": "h4",
+                "title": "name_with_override",
                 "link": {
-                    "selector": "a.link-out",
-                    "attr": "href",
-                    "prefix": "https://careers.wetafx.co.nz/"
+                    "path": "id",
+                    "prefix": "https://careers.wetafx.co.nz/jobs/"
                 },
-                "location": "div.card-body span.bg-black-darker"
+                "location": "location"
             }
         }
     },
