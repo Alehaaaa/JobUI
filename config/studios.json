@@ -540,7 +540,7 @@
     {
         "id": "risefx",
         "name": "Rise FX",
-        "logo_url": "https://risefx.com/media/images/layout/logo_rise_white.png",
+        "logo_url": "https://www.risefx.com/items/rise-visual-effect-studios-logo.svg",
         "careers_url": "https://risefx.com/rise-visual-effects-studios-jobs.php",
         "website": "https://risefx.com/",
         "scraping": {
@@ -631,7 +631,7 @@
     {
         "id": "trixter",
         "name": "Trixter",
-        "logo_url": "https://trixter.de/wp-content/themes/trixter/img/trixter_logo.svg",
+        "logo_url": "https://static.wikia.nocookie.net/logo-timeline/images/9/93/TRIXTER_Studios.svg",
         "careers_url": "https://www.trixter.de/jobs/",
         "scraping": {
             "strategy": "html",
@@ -657,7 +657,7 @@
         "scraping": {
             "strategy": "html",
             "strategy_override": "json_text",
-            "container": "script:contains('const jobsData')",
+            "container": "script",
             "map": {
                 "title": "name_with_override",
                 "link": {
