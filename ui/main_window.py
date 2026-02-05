@@ -492,7 +492,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         top_bar.addWidget(self.hide_empty_cb)
 
         # Auto-refresh
-        refresh_label = QtWidgets.QLabel("Auto-Refresh every")
+        refresh_label = QtWidgets.QLabel("Auto-Refresh")
         top_bar.addWidget(refresh_label)
 
         self.refresh_combo = QtWidgets.QComboBox()
