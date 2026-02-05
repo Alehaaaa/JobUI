@@ -68,22 +68,27 @@ class JobScraper:
                     l_key = re.sub(r"[?&](utm_|portal|ref|source|jobid)=[^&]*", "", link).rstrip("?&").lower()
 
                 # Per-studio deduplication: we skip if we've seen this exact title+link combo
-                # OR if the unique link has been seen already.
                 dup_key = (t_key, l_key)
-                if dup_key in seen_links or (l_key and l_key in seen_links and l_key != url.lower()):
+                if dup_key in seen_links:
                     continue
 
                 all_jobs.append(job)
                 seen_links.add(dup_key)
-                if l_key and l_key != url.lower():
-                    seen_links.add(l_key)
 
         return all_jobs
 
     def _apply_mapping_logic(self, val, m):
         """Centralized logic for split, regex, prefix, and suffix."""
-        if not val or not isinstance(m, dict):
+        if not isinstance(m, dict):
             return val
+
+        # If mapping only contains "default", return it immediately
+        if set(m.keys()) == {"default"}:
+            return m["default"]
+
+        if not val:
+            # Return default if no value provided
+            return m.get("default", "")
 
         # 1. Split
         split_cfg = m.get("split")
@@ -303,7 +308,11 @@ class JobScraper:
         mapping = scraping.get("map", {})
 
         method = scraping.get("method", "GET").upper()
-        params, payload, headers = scraping.get("params", {}), scraping.get("payload"), scraping.get("headers", {})
+        params, payload, headers = (
+            scraping.get("params", {}),
+            scraping.get("payload"),
+            scraping.get("headers", {}),
+        )
 
         if method == "POST":
             response = self.session.post(careers_url, json=payload, params=params, headers=headers)
@@ -341,10 +350,50 @@ class JobScraper:
                 elif isinstance(m, dict) and "find_previous" in m:
                     node = item.find_previous(m["find_previous"])
                     return node.get_text(separator=" ", strip=True) if node else ""
+                elif isinstance(m, dict) and "find_next_sibling" in m:
+                    # Find next sibling matching the selector
+                    sibling_sel = m["find_next_sibling"]
+                    node = None
+
+                    # Iterate through next siblings to find one matching the selector
+                    if isinstance(sibling_sel, str):
+                        current = item.next_sibling
+                        while current:
+                            if hasattr(current, "name"):  # It's a tag, not a string
+                                # Check if it matches the selector (class or tag)
+                                if current.select_one(f":scope.{sibling_sel}") or current.name == sibling_sel:
+                                    node = current
+                                    break
+                                # Also try matching if the class is in the element's classes
+                                if hasattr(current, "get") and sibling_sel in current.get("class", []):
+                                    node = current
+                                    break
+                            current = current.next_sibling
+                    else:
+                        node = item.find_next_sibling()
+
+                    if node:
+                        # If there's a nested selector, search within the sibling
+                        nested_sel = m.get("selector")
+                        if nested_sel:
+                            nested = node.select_one(nested_sel)
+                            if nested:
+                                if def_attr == "text":
+                                    return nested.get_text(separator=" ", strip=True)
+                                else:
+                                    return nested.get(def_attr, "")
+                        # Otherwise return the sibling's text or attribute
+                        if def_attr == "text":
+                            return node.get_text(separator=" ", strip=True)
+                        else:
+                            return node.get(def_attr, "")
+                    return ""
                 else:
                     selector = m.get("selector") if isinstance(m, dict) else m
                     attr = m.get("attr", def_attr) if isinstance(m, dict) else def_attr
-                    val = extract_html(item, selector, attr=attr, index=m.get("index") if isinstance(m, dict) else None)
+                    val = extract_html(
+                        item, selector, attr=attr, index=m.get("index") if isinstance(m, dict) else None
+                    )
                 return self._apply_mapping_logic(str(val or ""), m)
 
             # Strategy-specific fallback (Little Zoo)
@@ -406,7 +455,11 @@ class JobScraper:
                     sel = m.get("selector") or m.get("path") or def_tag
                     node = item.find(sel) or (item.find("guid") if def_tag == "link" else None)
                     if node:
-                        val = node.get_text(strip=True) if m.get("attr", "text") == "text" else node.get(m.get("attr"))
+                        val = (
+                            node.get_text(strip=True)
+                            if m.get("attr", "text") == "text"
+                            else node.get(m.get("attr"))
+                        )
                     else:
                         val = extract_html(item, sel, attr=m.get("attr", "text"), default="")
                     return self._apply_mapping_logic(str(val or ""), m)

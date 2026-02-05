@@ -376,7 +376,10 @@
             "container": "#row-unique-11 .vc_row.row-internal",
             "map": {
                 "title": ".uncode_text_column h4, .uncode_text_column p.factorial__headingFontFamily",
-                "link": ".btn-container a"
+                "link": ".btn-container a",
+                "location": {
+                    "default": "Madrid"
+                }
             }
         }
     },
@@ -387,9 +390,17 @@
         "careers_url": "https://www.littlezoostudio.com/careers",
         "scraping": {
             "strategy": "html",
-            "container": "div.sqs-block.markdown-block h2",
+            "container": "div.sqs-block.markdown-block:has(h2)",
             "map": {
-                "title": ""
+                "title": "h2",
+                "link": {
+                    "find_next_sibling": "sqs-block-button",
+                    "selector": "a.sqs-block-button-element",
+                    "attr": "href"
+                },
+                "location": {
+                    "default": "Montpelier, Vermont"
+                }
             }
         }
     },
@@ -403,7 +414,10 @@
             "container": "div.recruitment__list",
             "map": {
                 "title": "h2",
-                "link": "a"
+                "link": "a",
+                "location": {
+                    "default": "Madrid"
+                }
             }
         }
     },
@@ -417,7 +431,10 @@
             "container": "article.w-grid-item",
             "map": {
                 "title": ".post_title",
-                "link": "a.w-grid-item-anchor"
+                "link": "a.w-grid-item-anchor",
+                "location": {
+                    "default": "Paris"
+                }
             }
         }
     },

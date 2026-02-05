@@ -46,7 +46,7 @@ if __name__ == "__main__":
     #          fortiche, mikros, steamroller, giant, netflix, wildchild, flyingbark,
     #          rodeofx, framestore, skydance, illusorium, littlezoo...
 
-    target_studio = "sony"
+    target_studio = "littlezoo"
 
     if len(sys.argv) > 1:
         target_studio = sys.argv[1]
