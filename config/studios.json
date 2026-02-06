@@ -974,7 +974,7 @@
     {
         "id": "wildbrain",
         "name": "WildBrain",
-        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/b/be/WildBrain_logo.svg",
+        "logo_url": "https://static.wikia.nocookie.net/hitentertainment/images/e/e8/WildBrain-logo-stacked-002.png/revision/latest/scale-to-width-down/500?cb=20220730000807",
         "careers_url": "https://wildbrain-career.talent-soft.com/accueil.aspx?LCID=1033",
         "scraping": {
             "strategy": "html",
