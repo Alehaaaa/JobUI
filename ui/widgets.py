@@ -88,7 +88,28 @@ class EmptyStateWidget(QtWidgets.QWidget):
         super(EmptyStateWidget, self).__init__(parent)
         self.setAttribute(QtCore.Qt.WA_StyledBackground, True)
         self.setObjectName("EmptyStateWidget")
-        self.setStyleSheet("#EmptyStateWidget { background-color: transparent; }")
+        self.setStyleSheet("""
+            #EmptyStateWidget {
+                background-color: transparent;
+            }
+            QPushButton {
+                background-color: #4d4d4d;
+                color: #ddd;
+                font-weight: bold;
+                border: 1px solid #666;
+                border-radius: 6px;
+                padding: 0 20px;
+            }
+            QPushButton:hover {
+                background-color: #555;
+                border-color: #777;
+                color: #fff;
+            }
+            QPushButton:pressed {
+                background-color: #444;
+                border-color: #5d5d5d;
+            }
+        """)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setAlignment(QtCore.Qt.AlignCenter)
@@ -127,25 +148,6 @@ class EmptyStateWidget(QtWidgets.QWidget):
         self.btn.setCursor(QtCore.Qt.PointingHandCursor)
         self.btn.setFixedHeight(36)
         self.btn.setFixedWidth(200)
-        self.btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4d4d4d;
-                color: #ddd;
-                font-weight: bold;
-                border: 1px solid #666;
-                border-radius: 6px;
-                padding: 0 20px;
-            }
-            QPushButton:hover {
-                background-color: #555;
-                border-color: #777;
-                color: #fff;
-            }
-            QPushButton:pressed {
-                background-color: #444;
-                border-color: #5d5d5d;
-            }
-        """)
         self.btn.clicked.connect(lambda: self.actionRequested.emit(True))
         buttons_layout.addWidget(self.btn)
 
@@ -155,25 +157,6 @@ class EmptyStateWidget(QtWidgets.QWidget):
         self.secondary_btn.setFixedHeight(36)
         self.secondary_btn.setFixedWidth(40)
         self.secondary_btn.setVisible(False)
-        self.secondary_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4d4d4d;
-                color: #ddd;
-                font-weight: bold;
-                border: 1px solid #666;
-                border-radius: 6px;
-                padding: 0 20px;
-            }
-            QPushButton:hover {
-                background-color: #555;
-                border-color: #777;
-                color: #fff;
-            }
-            QPushButton:pressed {
-                background-color: #444;
-                border-color: #5d5d5d;
-            }
-        """)
         self.secondary_btn.clicked.connect(lambda: self.actionRequested.emit(False))
         buttons_layout.addWidget(self.secondary_btn)
 
