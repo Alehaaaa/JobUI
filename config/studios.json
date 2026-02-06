@@ -4,7 +4,6 @@
         "name": "Walt Disney Animation",
         "logo_url": "https://upload.wikimedia.org/wikipedia/commons/8/8f/Disney_logo.png",
         "careers_url": "https://jobs.disneycareers.com/search-jobs",
-        "website": "https://jobs.disneycareers.com",
         "scraping": {
             "strategy": "html",
             "params": {
@@ -25,7 +24,6 @@
         "name": "Industrial Light & Magic",
         "logo_url": "https://www.ilm.com/wp-content/uploads/2014/12/ilm_logo_nav_black.svg",
         "careers_url": "https://jobs.disneycareers.com/search-jobs",
-        "website": "https://jobs.disneycareers.com",
         "scraping": {
             "strategy": "html",
             "params": {
@@ -460,7 +458,6 @@
         "name": "Goodbye Kansas",
         "logo_url": "https://images.teamtailor-cdn.com/images/s3/teamtailor-production/logotype-v3/image_uploads/30eeee22-fd93-4ab3-ba54-c570a4d54c2b/original.png",
         "careers_url": "https://career.goodbyekansas.com/jobs",
-        "website": "https://goodbyekansas.com/",
         "scraping": {
             "strategy": "html",
             "container": "#jobs_list_container li",
@@ -479,7 +476,6 @@
         "name": "Important Looking Pirates VFX",
         "logo_url": "https://www.ilpvfx.com/_astro/logo.DRIecYuS.svg",
         "careers_url": "https://ilpvfx.teamtailor.com/jobs",
-        "website": "https://www.ilpvfx.com/",
         "scraping": {
             "strategy": "html",
             "container": "#jobs_list_container li",
@@ -498,7 +494,6 @@
         "name": "The Third Floor",
         "logo_url": "https://cc-client-cdn.clearcompany.com/224aa8b1-7455-9afa-439f-0e0b9c9fa4fa/careersiteimages/stand_alone_custom_logo?_=1769990835",
         "careers_url": "https://thethirdfloorinc.hrmdirect.com/employment/job-openings.php?search=true&",
-        "website": "https://thethirdfloorinc.com/",
         "scraping": {
             "strategy": "html",
             "container": "tr.ReqRowClick",
@@ -559,7 +554,6 @@
         "name": "Rise FX",
         "logo_url": "https://www.risefx.com/items/rise-visual-effect-studios-logo.svg",
         "careers_url": "https://risefx.com/rise-visual-effects-studios-jobs.php",
-        "website": "https://risefx.com/",
         "scraping": {
             "strategy": "html",
             "container": ".job-container",
@@ -692,7 +686,6 @@
         "name": "Titmouse",
         "logo_url": "https://cdn3.toonboom.com/wp-content/uploads/2026/01/26140446/Titmouse_logo.png",
         "careers_url": "https://titmouse.net/careers/",
-        "website": "https://titmouse.net/",
         "scraping": {
             "strategy": "html",
             "container": "li.titmouse-external-jobs__item",
@@ -757,7 +750,7 @@
         "id": "brownbag",
         "name": "Brown Bag Films",
         "logo_url": "https://www.brownbagfilms.com/themes/custom/misti/logo.svg",
-        "website": "https://www.brownbagfilms.com/about-us/careers",
+        "website": "https://milo-hr.my.salesforce-sites.com/recruit/fRecruit__ApplyJobList",
         "careers_url": [
             "https://milo-hr.my.salesforce-sites.com/recruit/fRecruit__ApplyJobList?portal=Toronto",
             "https://milo-hr.my.salesforce-sites.com/recruit/fRecruit__ApplyJobList?portal=Dublin"
@@ -908,7 +901,6 @@
         "name": "3Doubles Producciones",
         "logo_url": "https://www.notodoanimacion.es/wp-content/uploads/2026/01/logo-3Doubles-Producciones-S.L-3.webp",
         "careers_url": "https://3doubles.factorial.es/#jobs",
-        "website": "https://3doubles.factorial.es/",
         "scraping": {
             "strategy": "html",
             "container": "li.job-offer-item[data-job-postings-url]",
@@ -917,6 +909,87 @@
                 "link": "a.buttonSecondary",
                 "location": {
                     "find_previous": "h3"
+                }
+            }
+        }
+    },
+    {
+        "id": "lightbox",
+        "name": "Lightbox Animation Studios",
+        "logo_url": "https://lbox.es/wp-content/uploads/2021/02/logo_Lighbox-Animation-Studios_alpha.png",
+        "careers_url": "https://lightbox-animation-studios.jobs.personio.com/search.json",
+        "website": "https://lightbox-animation-studios.jobs.personio.com/",
+        "scraping": {
+            "strategy": "json",
+            "path": "[*]",
+            "map": {
+                "title": "name",
+                "link": {
+                    "path": "id",
+                    "prefix": "https://lightbox-animation-studios.jobs.personio.com/job/"
+                },
+                "location": "office"
+            }
+        }
+    },
+    {
+        "id": "hampa",
+        "name": "Hampa Studio",
+        "logo_url": "https://hampastudio.com/wp-content/uploads/2024/07/Recurso-3-1.webp",
+        "careers_url": "https://hampastudio.teamtailor.com/jobs",
+        "scraping": {
+            "strategy": "html",
+            "container": "#jobs_list_container li",
+            "map": {
+                "title": "a",
+                "link": "a",
+                "location": {
+                    "selector": "span.text-base span",
+                    "index": "2"
+                }
+            }
+        }
+    },
+    {
+        "id": "superprod",
+        "name": "Superprod",
+        "logo_url": "https://api.superprod.net/upload/media/superprod-logo.svg",
+        "careers_url": "https://careers.werecruit.io/en/superprod",
+        "website": "https://www.superprod.net/",
+        "scraping": {
+            "strategy": "json_text",
+            "json_text": {
+                "variable": "allOffers"
+            },
+            "map": {
+                "title": "TitleTranslated",
+                "link": {
+                    "path": "Slug",
+                    "prefix": "https://careers.werecruit.io/en/superprod/offers/"
+                },
+                "location": "Address_City"
+            }
+        }
+    },
+    {
+        "id": "wildbrain",
+        "name": "WildBrain",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/b/be/WildBrain_logo.svg",
+        "careers_url": "https://wildbrain-career.talent-soft.com/accueil.aspx?LCID=1033",
+        "scraping": {
+            "strategy": "html",
+            "container": "li.ts-offer-list-item",
+            "map": {
+                "title": "h3.ts-offer-list-item__title a",
+                "link": {
+                    "selector": "h3.ts-offer-list-item__title a",
+                    "attr": "href",
+                    "prefix": "https://wildbrain-career.talent-soft.com"
+                },
+                "location": {
+                    "selector": "ul.ts-offer-list-item__description li.noBorder",
+                    "index": "0",
+                    "default": "Vancouver"
                 }
             }
         }

@@ -612,6 +612,9 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
             enable_all.setIcon(resources.get_icon("dot.svg"))
             disable_all = self.studios_menu.addAction("Disable All", self.config_manager.disable_all_studios)
             disable_all.setIcon(resources.get_icon("dot.svg"))
+        else:
+            self.studios_menu.setEnabled(False)
+            self.studios_menu.setToolTip("Add studios to enable this menu")
 
     def update_studios_menu_checks(self):
         """Updates the checked state of studio actions in the menu."""
@@ -700,7 +703,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
             # At least one studio is visible in the flow layout
             self.content_stack.setCurrentWidget(self.studios_container)
 
-    def _on_empty_state_action(self):
+    def _on_empty_state_action(self, primary=True):
         """Unified handler for actions from the empty state widget."""
         studios = self.config_manager.get_studios()
         num_studios = len(studios)
@@ -710,8 +713,12 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         if num_studios == 0:
             self.open_add_studio_dialog()
         elif not has_enabled:
-            # Open studios menu
-            self.studios_menu.exec_(QtGui.QCursor.pos())
+            if primary:
+                # Enable all studios
+                self.config_manager.enable_all_studios()
+            else:
+                # Open studios menu
+                self.studios_menu.exec_(QtGui.QCursor.pos())
         elif search_text:
             self.search_input.clear()
         else:

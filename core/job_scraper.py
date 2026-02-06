@@ -265,10 +265,12 @@ class JobScraper:
         if json_regex:
             regex = json_regex
         elif json_var:
-            regex = r"(?:const|var|let)\s+" + json_var + r"\s*=\s*(\[.*\])\s*;?"
+            # Supports: var x = [...], const x = [...], let x = [...], window.x = [...]
+            regex = r"(?:const|var|let|window\.)\s*" + re.escape(json_var) + r"\s*=\s*(\[.*?\])\s*(?:;|\n|<\/script>)"
         else:
-            regex = r"const jobsData\s*=\s*(\[.*\])\s*;?"
+            regex = r"(?:const|var|let|window\.)\s*jobsData\s*=\s*(\[.*?\])\s*(?:;|\n|<\/script>)"
 
+        # Use re.DOTALL to match across lines
         soup = BeautifulSoup(response.text, "html.parser")
         text = ""
 
@@ -296,7 +298,8 @@ class JobScraper:
         try:
             import json
 
-            items = json.loads(match.group(1))
+            json_str = match.group(1).strip()
+            items = json.loads(json_str)
             return self._parse_json_items(items, studio, careers_url)
         except Exception as e:
             logger.error(f"Error parsing JSON: {e}")
@@ -313,14 +316,30 @@ class JobScraper:
             scraping.get("payload"),
             scraping.get("headers", {}),
         )
+        form_data = scraping.get("form_data")
 
         if method == "POST":
-            response = self.session.post(careers_url, json=payload, params=params, headers=headers)
+            # Support both JSON payload and form_data
+            if form_data:
+                response = self.session.post(careers_url, data=form_data, params=params, headers=headers)
+            else:
+                response = self.session.post(careers_url, json=payload, params=params, headers=headers)
         else:
             response = self.session.get(careers_url, params=params, headers=headers)
 
         response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
+
+        # Handle JSON response with HTML field (e.g. Hireify)
+        html_content = response.text
+        json_html_field = scraping.get("json_html_field")
+        if json_html_field:
+            try:
+                data = response.json()
+                html_content = extract_json(data, json_html_field, response.text)
+            except Exception:
+                pass
+
+        soup = BeautifulSoup(html_content, "html.parser")
 
         container_sel = scraping.get("container")
         if not container_sel:
@@ -391,9 +410,7 @@ class JobScraper:
                 else:
                     selector = m.get("selector") if isinstance(m, dict) else m
                     attr = m.get("attr", def_attr) if isinstance(m, dict) else def_attr
-                    val = extract_html(
-                        item, selector, attr=attr, index=m.get("index") if isinstance(m, dict) else None
-                    )
+                    val = extract_html(item, selector, attr=attr, index=m.get("index") if isinstance(m, dict) else None)
                 return self._apply_mapping_logic(str(val or ""), m)
 
             # Strategy-specific fallback (Little Zoo)
@@ -455,11 +472,7 @@ class JobScraper:
                     sel = m.get("selector") or m.get("path") or def_tag
                     node = item.find(sel) or (item.find("guid") if def_tag == "link" else None)
                     if node:
-                        val = (
-                            node.get_text(strip=True)
-                            if m.get("attr", "text") == "text"
-                            else node.get(m.get("attr"))
-                        )
+                        val = node.get_text(strip=True) if m.get("attr", "text") == "text" else node.get(m.get("attr"))
                     else:
                         val = extract_html(item, sel, attr=m.get("attr", "text"), default="")
                     return self._apply_mapping_logic(str(val or ""), m)
