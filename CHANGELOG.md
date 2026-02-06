@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.6] - 2026-02-06
+
+### Added
+- **New Studio Integration**:
+  - **WildBrain**: TalentSoft careers portal integration with HTML scraping strategy.
+- **JSON_TEXT Strategy**: New scraping strategy for extracting embedded JavaScript variables from HTML pages (e.g., `window.allOffers`, `jobsData`).
+  - Implemented for **Wētā FX** and **Superprod** studios.
+- **Default Location Handling**: Enhanced location mapping to support default values when location data is missing or empty.
+
+### Changed
+- **Configuration Cleanup**: Removed redundant `website` fields from studio configurations where they duplicated the `careers_url`.
+  - Affected studios: Disney, ILM, Goodbye Kansas, Important Looking Pirates VFX, The Third Floor, Rise FX, Titmouse, 3Doubles Producciones.
+- **Logo Updates**: 
+  - Updated WildBrain logo to use higher quality stacked version.
+  - Improved Brown Bag Films website URL to point directly to the careers portal.
+
+### Fixed
+- **Wētā FX Scraper**: Migrated from HTML to JSON_TEXT strategy to properly extract job data from embedded JavaScript.
+- **Superprod Scraper**: Configured JSON_TEXT strategy to parse `window.allOffers` variable.
+- **Link Prefixing**: Ensured proper URL construction for TalentSoft-based career portals.
+
 ## [0.1.5] - 2026-02-04
 
 ### Added
