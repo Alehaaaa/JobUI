@@ -983,7 +983,6 @@
         "name": "Superprod",
         "logo_url": "https://api.superprod.net/upload/media/superprod-logo.svg",
         "careers_url": "https://careers.werecruit.io/en/superprod",
-        "website": "https://www.superprod.net/",
         "scraping": {
             "strategy": "json_text",
             "json_text": {
@@ -994,6 +993,26 @@
                 "link": {
                     "path": "Slug",
                     "prefix": "https://careers.werecruit.io/en/superprod/offers/"
+                },
+                "location": "Address_City"
+            }
+        }
+    },
+    {
+        "id": "atlantis",
+        "name": "Atlantis",
+        "logo_url": "https://atlantisanimation.com/app/uploads/2023/01/Atlantis-44-Symbol-DEFINITIVE-1.png",
+        "careers_url": "https://careers.werecruit.io/en/atlantis",
+        "scraping": {
+            "strategy": "json_text",
+            "json_text": {
+                "variable": "allOffers"
+            },
+            "map": {
+                "title": "TitleTranslated",
+                "link": {
+                    "path": "Slug",
+                    "prefix": "https://careers.werecruit.io/en/atlantis/offers/"
                 },
                 "location": "Address_City"
             }
@@ -1038,6 +1057,25 @@
                 "title": "title",
                 "link": "absoluteUrl",
                 "location": "locationName"
+            }
+        }
+    },
+    {
+        "id": "bluezoo",
+        "name": "Blue Zoo",
+        "logo_url": "https://careers.blue-zoo.co.uk/images/logo-rev.png",
+        "careers_url": "https://careers.blue-zoo.co.uk/vacancies/vacancy-search-results.aspx?view=list",
+        "scraping": {
+            "strategy": "html",
+            "container": "#ctl00_ContentContainer_ctl00_VacancyListView div.vsr-job",
+            "map": {
+                "title": "h2.vsr-job__title a",
+                "link": {
+                    "selector": "h2.vsr-job__title a",
+                    "attr": "href",
+                    "prefix": "https://careers.blue-zoo.co.uk/vacancies/"
+                },
+                "location": "div[data-id='div_content_VacV_LocationID'] > span"
             }
         }
     }
