@@ -25,7 +25,7 @@ from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
 from maya.OpenMayaUI import MQtUtil  # type: ignore
 
 from .flow_layout import FlowLayout
-from .widgets import WaitingSpinner, ClickableLabel, OpenMenu, EmptyStateWidget
+from .widgets import WaitingSpinner, ClickableLabel, EmptyStateWidget, ScrollableMenu
 from .styles import (
     JOB_WIDGET_STYLE,
     STUDIO_WIDGET_STYLE,
@@ -543,7 +543,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
     def setup_menu(self):
         menubar = self.menuBar()
 
-        self.studios_menu = OpenMenu("Studios", self)
+        self.studios_menu = ScrollableMenu("Studios", self)
         self.studios_menu.aboutToShow.connect(self.populate_studios_menu)
         menubar.addMenu(self.studios_menu)
 
@@ -587,9 +587,21 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         # Sort by name for easier navigation
         sorted_studios = sorted(studios, key=lambda s: s.get("name", "").lower())
 
+        current_letter = None
+
         for studio in sorted_studios:
             sid = studio.get("id")
             name = studio.get("name", sid)
+
+            # Alpha Separator
+            if name:
+                first = name[0].upper()
+                if not first.isalpha():
+                    first = "#"
+
+                if first != current_letter:
+                    current_letter = first
+                    self.studios_menu.addSection(current_letter)
 
             # Escape ampersands for Qt menu mnemonics
             display_name = name.replace("&", "&&")
@@ -603,15 +615,27 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
                 return lambda checked: self.config_manager.set_studio_enabled(s_id, checked)
 
             act.triggered.connect(make_handler(sid))
+
+            # ScrollableMenu.addAction puts it inside the scroll area
             self.studios_menu.addAction(act)
             self.menu_studio_actions[sid] = act
 
         if sorted_studios:
-            self.studios_menu.addSeparator()
-            enable_all = self.studios_menu.addAction("Enable All", self.config_manager.enable_all_studios)
+            # Add separators and global actions outside the scroll area using QtWidgets.QMenu directly
+            QtWidgets.QMenu.addSeparator(self.studios_menu)
+
+            enable_all = QtWidgets.QAction("Enable All", self.studios_menu)
+            enable_all.triggered.connect(self.config_manager.enable_all_studios)
             enable_all.setIcon(resources.get_icon("dot.svg"))
-            disable_all = self.studios_menu.addAction("Disable All", self.config_manager.disable_all_studios)
+            QtWidgets.QMenu.addAction(self.studios_menu, enable_all)
+
+            disable_all = QtWidgets.QAction("Disable All", self.studios_menu)
+            disable_all.triggered.connect(self.config_manager.disable_all_studios)
             disable_all.setIcon(resources.get_icon("dot.svg"))
+            QtWidgets.QMenu.addAction(self.studios_menu, disable_all)
+
+            self.studios_menu.search_input.setPlaceholderText("Search %s studios..." % len(sorted_studios))
+
         else:
             self.studios_menu.setEnabled(False)
             self.studios_menu.setToolTip("Add studios to enable this menu")

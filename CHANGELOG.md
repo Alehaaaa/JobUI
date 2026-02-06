@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.7] - 2026-02-06
+
+### Added
+- **Scrollable Studios Menu**: Replacing the standard multi-column menu with a custom `ScrollableMenu` widget designed for long lists.
+  - **Search Integration**: Pinned search box at the top of the menu with live filtering and I-beam cursor support.
+  - **Alphabetical Separation**: Dynamic section headers (A, B, C...) that intelligently filter with search results.
+  - **Custom Scrolling**: Overlay scroll arrow buttons for mouse-over scrolling interaction.
+- **Bulk Actions**: Specific "Enable All" and "Disable All" actions fixed at the bottom of the studio list.
+
+### Changed
+- **Menu UX**: Fixed menu sizing to dynamically "shrink to fit" content, removing empty space.
+- **Performance**: Optimized menu filtering and resizing with iterative calculations to prevent UI lag.
+- **Styles**: Updated styling for empty state buttons and menu items to match the dark theme better.
+
 ## [0.1.6] - 2026-02-06
 
 ### Added
