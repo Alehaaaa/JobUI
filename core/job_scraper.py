@@ -299,7 +299,11 @@ class JobScraper:
             import json
 
             json_str = match.group(1).strip()
-            items = json.loads(json_str)
+            data = json.loads(json_str)
+            items = extract_json(data, scraping.get("path", ""), default=[])
+            if not isinstance(items, list):
+                items = [items]
+
             return self._parse_json_items(items, studio, careers_url)
         except Exception as e:
             logger.error(f"Error parsing JSON: {e}")

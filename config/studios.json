@@ -457,7 +457,7 @@
         "id": "goodbyekansas",
         "name": "Goodbye Kansas",
         "logo_url": "https://images.teamtailor-cdn.com/images/s3/teamtailor-production/logotype-v3/image_uploads/30eeee22-fd93-4ab3-ba54-c570a4d54c2b/original.png",
-        "careers_url": "https://career.goodbyekansas.com/jobs",
+        "careers_url": "https://goodbyekansas.teamtailor.com/jobs",
         "scraping": {
             "strategy": "html",
             "container": "#jobs_list_container li",
@@ -530,11 +530,31 @@
         }
     },
     {
+        "id": "nexusstudios",
+        "name": "Nexus Studios",
+        "logo_url": "https://images.squarespace-cdn.com/content/v1/5ae136547e3c3a14ad57c8cf/1571806561753-7LQRGI48E78EXGOTJIJ1/nexus.png",
+        "careers_url": "https://apply.workable.com/api/v3/accounts/nexusstudios/jobs",
+        "website": "https://apply.workable.com/nexusstudios/#jobs",
+        "scraping": {
+            "strategy": "json",
+            "method": "POST",
+            "path": "results[*]",
+            "map": {
+                "title": "title",
+                "link": {
+                    "path": "shortcode",
+                    "prefix": "https://apply.workable.com/nexusstudios/j/"
+                },
+                "location": "location.display, location.city + ', ' + location.country"
+            }
+        }
+    },
+    {
         "id": "pixomondo",
         "name": "Pixomondo",
         "logo_url": "https://amcrs.de/wp-content/uploads/2022/05/PXO-Logo_Black-RGB-1.png",
         "careers_url": "https://apply.workable.com/api/v3/accounts/pxo/jobs",
-        "website": "https://pixomondo.com/",
+        "website": "https://apply.workable.com/pxo/#jobs",
         "scraping": {
             "strategy": "json",
             "method": "POST",
@@ -874,17 +894,10 @@
         "name": "One of Us",
         "logo_url": "https://workable-application-form.s3.us-east-1.amazonaws.com/advanced/production/667018513e6590e6b6d8cb1f/d17fe696-7624-9b3f-ab4a-0ae70893f65c",
         "careers_url": "https://apply.workable.com/api/v3/accounts/one-of-us/jobs",
-        "website": "https://apply.workable.com/one-of-us/?lng=en",
+        "website": "https://apply.workable.com/one-of-us/#jobs",
         "scraping": {
             "strategy": "json",
             "method": "POST",
-            "payload": {
-                "query": "",
-                "department": [],
-                "location": [],
-                "workplace": [],
-                "worktype": []
-            },
             "path": "results[*]",
             "map": {
                 "title": "title",
@@ -951,6 +964,21 @@
         }
     },
     {
+        "id": "realtimeuk",
+        "name": "Realtime",
+        "logo_url": "https://cdn.80.lv/api/upload/vendor/502/607d4bd09d7a6.png",
+        "careers_url": "https://careers.realtimeuk.com/jobs",
+        "scraping": {
+            "strategy": "html",
+            "container": "#jobs_list_container li",
+            "map": {
+                "title": "a",
+                "link": "a",
+                "location": "div.mt-1.text-md"
+            }
+        }
+    },
+    {
         "id": "superprod",
         "name": "Superprod",
         "logo_url": "https://api.superprod.net/upload/media/superprod-logo.svg",
@@ -991,6 +1019,25 @@
                     "index": "0",
                     "default": "Vancouver"
                 }
+            }
+        }
+    },
+    {
+        "id": "buck",
+        "name": "Buck",
+        "logo_url": "https://prowly-prod.s3.eu-west-1.amazonaws.com/uploads/press_rooms/company_logos/30294/538d3032a6f3298ca57cbbfb0c21d726.png",
+        "careers_url": "https://buck.co/careers",
+        "scraping": {
+            "strategy": "json_text",
+            "container": "script#__NEXT_DATA__",
+            "json_text": {
+                "regex": "(.*)"
+            },
+            "path": "props.pageProps.page.modules[*].jobs[*]",
+            "map": {
+                "title": "title",
+                "link": "absoluteUrl",
+                "location": "locationName"
             }
         }
     }
