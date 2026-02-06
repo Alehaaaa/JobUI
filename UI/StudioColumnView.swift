@@ -2,16 +2,13 @@ import SwiftUI
 
 // The main view for a single studio column.
 struct StudioColumnView: View {
+    @EnvironmentObject var appState: AppState
     @ObservedObject var viewModel: StudioViewModel
     @Binding var filterText: String
+    @State private var isRefreshingLogo = false
 
     private var filteredJobs: [Job] {
-        if filterText.isEmpty {
-            return viewModel.jobs
-        }
-        return viewModel.jobs.filter {
-            $0.title.range(of: filterText, options: [.caseInsensitive, .diacriticInsensitive]) != nil
-        }
+        viewModel.filteredJobs(filterText: filterText)
     }
 
     var body: some View {
@@ -20,13 +17,34 @@ struct StudioColumnView: View {
             HStack {
                 Spacer()
                 
-                Link(destination: viewModel.studio.website) {
-                    CachedAsyncImage(url: viewModel.studio.logoUrl) {
-                        Text(viewModel.studio.name)
-                            .font(.headline)
+                Link(destination: viewModel.studio.website ?? viewModel.studio.careersUrl.first!) {
+                    if isRefreshingLogo || appState.isRefetchingLogos {
+                        ProgressView()
+                            .frame(height: 40)
+                    } else {
+                        CachedAsyncImage(url: viewModel.studio.logoUrl, studioId: viewModel.studio.id) {
+                            Text(viewModel.studio.name)
+                                .font(.headline)
+                        }
                     }
                 }
                 .frame(height: 40)
+                .contextMenu {
+                    Button("Refresh Logo") {
+                        Task {
+                            isRefreshingLogo = true
+                            await ImageCache.shared.clearCachedImage(studioId: viewModel.studio.id)
+                            // Small delay to ensure cache is cleared
+                            try? await Task.sleep(nanoseconds: 100_000_000)
+                            isRefreshingLogo = false
+                        }
+                    }
+                    Button("Open Careers Page") {
+                        if let url = viewModel.studio.website ?? viewModel.studio.careersUrl.first {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                }
                 
                 Spacer()
                 
@@ -105,16 +123,27 @@ struct JobRowView: View {
     let job: Job
     
     var body: some View {
-        Link(destination: job.link) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(job.title).font(.headline)
-                if let location = job.location, !location.isEmpty {
-                    Text(location).font(.subheadline).foregroundColor(.secondary)
+        HStack {
+            Link(destination: job.link) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(job.title).font(.headline)
+                    if let location = job.location, !location.isEmpty {
+                        Text(location).font(.subheadline).foregroundColor(.secondary)
+                    }
                 }
+                .padding(.vertical, 4)
             }
-            .padding(.vertical, 4)
+            .buttonStyle(.plain)
+            
+            if let extraLink = job.extraLink {
+                Spacer()
+                Link(destination: extraLink) {
+                    Image(systemName: "doc.text.fill")
+                        .foregroundColor(.blue)
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .buttonStyle(.plain)
     }
 }
 

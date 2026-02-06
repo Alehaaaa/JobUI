@@ -62,8 +62,6 @@
 			membershipExceptions = (
 				ContentView.swift,
 				JobListView.swift,
-			AboutView.swift,
-			CursorModifier.swift,
 				StudioColumnView.swift,
 			);
 			target = F284F0942E21B57D0092F064 /* JobUI */;

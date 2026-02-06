@@ -15,8 +15,7 @@ class StudioViewModel: ObservableObject {
     private var totalJobs = 0
     
     var canLoadMore: Bool {
-        // Only show load more if the scraper supports it and we haven't loaded everything.
-        studio.scrapingStrategy == "netflix_json" && jobs.count < totalJobs
+        false // Generic scraper doesn't support pagination yet
     }
 
     init(studio: Studio) {
@@ -62,16 +61,28 @@ class StudioViewModel: ObservableObject {
             isLoadingMore = false
         }
     }
+    
+    func filteredJobs(filterText: String) -> [Job] {
+        if filterText.isEmpty {
+            return jobs
+        }
+        return jobs.filter {
+            $0.title.range(of: filterText, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        }
+    }
 }
 
 // MARK: - Main Content View
 struct ContentView: View {
+    @EnvironmentObject var appState: AppState
     @State private var studios: [Studio] = []
     @State private var filterText = ""
     @State private var studioSearchText = ""
     @State private var disabledStudioIDs: Set<String> = []
     @State private var navigationVisibility = NavigationSplitViewVisibility.all
     @State private var viewModels: [String: StudioViewModel] = [:]
+    @State private var hideEmpty = false
+    @State private var scrollToStudioID: String? = nil
     
     @FocusState private var isJobFilterFocused: Bool
 
@@ -87,52 +98,68 @@ struct ContentView: View {
     private var visibleStudios: [Studio] {
         studios.filter { !disabledStudioIDs.contains($0.id) }
     }
+    
+    private var sidebarView: some View {
+        VStack {
+            ClearableTextField(placeholder: "Search studios...", text: $studioSearchText)
+                .padding([.horizontal, .top])
+
+            List {
+                ForEach(filteredStudios) { studio in
+                    studioToggleRow(for: studio)
+                }
+                .onMove(perform: studioSearchText.isEmpty ? moveStudioInSidebar : nil)
+            }
+            .scrollContentBackground(.hidden)
+            .listStyle(.sidebar)
+        }
+        .padding(8)
+        .navigationSplitViewColumnWidth(250)
+        .navigationTitle("Studios")
+        .background(Material.ultraThinMaterial)
+    }
+    
+    private func studioToggleRow(for studio: Studio) -> some View {
+        HStack {
+            Image(systemName: "line.3.horizontal")
+                .foregroundColor(.secondary)
+            Toggle(isOn: Binding(
+                get: { !disabledStudioIDs.contains(studio.id) },
+                set: { isEnabled in
+                    if isEnabled {
+                        disabledStudioIDs.remove(studio.id)
+                    } else {
+                        disabledStudioIDs.insert(studio.id)
+                    }
+                    updateViewModels()
+                    saveDisabledStudios()
+                }
+            )) {
+                Text(studio.name)
+                    .font(.headline)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if !disabledStudioIDs.contains(studio.id) {
+                            scrollToStudioID = studio.id
+                        }
+                    }
+                    .pointingCursor()
+            }
+        }
+        .listRowBackground(Color.clear)
+    }
 
     var body: some View {
         NavigationSplitView(columnVisibility: $navigationVisibility) {
-            // --- Sidebar ---
-            VStack {
-                ClearableTextField(placeholder: "Search studios...", text: $studioSearchText)
-                    .padding([.horizontal, .top])
-
-                List {
-                    ForEach(filteredStudios) { studio in
-                        HStack {
-                            Image(systemName: "line.3.horizontal")
-                                .foregroundColor(.secondary)
-                            Toggle(isOn: Binding(
-                                get: { !disabledStudioIDs.contains(studio.id) },
-                                set: { isEnabled in
-                                    if isEnabled {
-                                        disabledStudioIDs.remove(studio.id)
-                                    } else {
-                                        disabledStudioIDs.insert(studio.id)
-                                    }
-                                    updateViewModels()
-                                    saveDisabledStudios()
-                                }
-                            )) {
-                                Text(studio.name).font(.headline)
-                            }
-                        }
-                        .listRowBackground(Color.clear)
-                    }
-                    .onMove(perform: studioSearchText.isEmpty ? moveStudioInSidebar : nil)
-                }
-                .scrollContentBackground(.hidden)
-                .listStyle(.sidebar)
-            }
-            .padding(8)
-            .navigationSplitViewColumnWidth(250)
-            .navigationTitle("Studios")
-            .background(Material.ultraThinMaterial)
-
+            sidebarView
         } detail: {
             StudioGridView(
                 studios: $studios,
                 visibleStudios: visibleStudios,
                 viewModels: viewModels,
                 filterText: $filterText,
+                hideEmpty: $hideEmpty,
+                scrollToID: $scrollToStudioID,
                 isJobFilterFocused: $isJobFilterFocused,
                 reloadAllAction: reloadAll,
                 saveOrderAction: saveStudiosOrder
@@ -145,43 +172,91 @@ struct ContentView: View {
                 isJobFilterFocused = true
             }
         }
+        .onChange(of: appState.disabledStudioIDs) { _, newValue in
+            disabledStudioIDs = newValue
+            updateViewModels()
+        }
+        .onChange(of: disabledStudioIDs) { _, newValue in
+            appState.disabledStudioIDs = newValue
+            saveDisabledStudios()
+        }
+        .sheet(isPresented: $appState.showAbout) {
+            AboutView()
+        }
+        .alert("Database Update", isPresented: $appState.showUpdateAlert) {
+            Button("OK") {
+                if appState.updateMessage?.contains("updated") == true {
+                    loadData()
+                }
+            }
+        } message: {
+            Text(appState.updateMessage ?? "")
+        }
+        .alert("Refetch All Logos", isPresented: $appState.showLogoRefreshAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Refetch", role: .destructive) {
+                Task {
+                    await appState.refetchAllLogos()
+                }
+            }
+        } message: {
+            Text("This will clear all cached studio logos and download them again. Are you sure?")
+        }
+        .onChange(of: appState.studios) { _, newValue in
+            studios = newValue
+            updateViewModels()
+        }
+        .overlay {
+            if appState.isUpdatingDatabase {
+                ZStack {
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                    
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        
+                        Text("Updating Studios Database...")
+                            .font(.headline)
+                        
+                        Text("Fetching latest studio configurations from GitHub")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(40)
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(20)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+                    .shadow(radius: 20)
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.default, value: appState.isUpdatingDatabase)
     }
 
     // MARK: Data Helpers
     private func loadData() {
-        loadStudios()
+        // Initial load from whatever we have (App Support or Bundle)
+        self.studios = ConfigManager.shared.loadStudios()
+        appState.studios = self.studios
         loadDisabledStudios()
+        disabledStudioIDs = appState.disabledStudioIDs
         updateViewModels()
-    }
-
-    private func loadStudios() {
-        guard let url = Bundle.main.url(forResource: "studios", withExtension: "json") else {
-            print("studios.json not found")
-            return
-        }
-        do {
-            let loadedStudios = try JSONDecoder().decode([Studio].self, from: try Data(contentsOf: url))
-            let savedOrder = UserDefaults.standard.stringArray(forKey: "studioOrder") ?? []
-            
-            var seen = Set<String>()
-            let studioDict = Dictionary(uniqueKeysWithValues: loadedStudios.map { ($0.id, $0) })
-            
-            var sortedStudios = savedOrder.compactMap { id -> Studio? in
-                if seen.contains(id) { return nil }
-                seen.insert(id)
-                return studioDict[id]
-            }
-            
-            for studio in loadedStudios {
-                if !seen.contains(studio.id) {
-                    sortedStudios.append(studio)
+        
+        // Force an update check every time we load data
+        Task {
+            let updated = await ConfigManager.shared.updateConfigIfNeeded()
+            if updated {
+                await MainActor.run {
+                    self.studios = ConfigManager.shared.loadStudios()
+                    appState.studios = self.studios
+                    updateViewModels()
                 }
             }
-            
-            self.studios = sortedStudios
-            
-        } catch {
-            print("Failed to load or parse studios.json: \(error)")
         }
     }
 
@@ -242,9 +317,12 @@ struct StudioGridView: View {
     let visibleStudios: [Studio]
     let viewModels: [String: StudioViewModel]
     @Binding var filterText: String
+    @Binding var hideEmpty: Bool
+    @Binding var scrollToID: String?
     var isJobFilterFocused: FocusState<Bool>.Binding
     let reloadAllAction: () async -> Void
     let saveOrderAction: () -> Void
+    
 
     var body: some View {
         VStack {
@@ -253,18 +331,33 @@ struct StudioGridView: View {
                     .foregroundColor(.secondary)
             } else {
                 let columns = [GridItem(.adaptive(minimum: 300))]
-                ScrollView {
-                    LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(visibleStudios) { studio in
-                            if let viewModel = viewModels[studio.id] {
-                                StudioColumnView(
-                                    viewModel: viewModel,
-                                    filterText: $filterText
-                                )
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVGrid(columns: columns, spacing: 16) {
+                            ForEach(visibleStudios) { studio in
+                                if let viewModel = viewModels[studio.id] {
+                                    let matchingJobs = viewModel.filteredJobs(filterText: filterText)
+                                    if !hideEmpty || !matchingJobs.isEmpty {
+                                        StudioColumnView(
+                                            viewModel: viewModel,
+                                            filterText: $filterText
+                                        )
+                                        .id(studio.id)
+                                    }
+                                }
                             }
                         }
+                        .padding()
                     }
-                    .padding()
+                    .onChange(of: scrollToID) { _, newValue in
+                        if let id = newValue {
+                            withAnimation {
+                                proxy.scrollTo(id, anchor: .top)
+                            }
+                            // Reset state after scrolling
+                            scrollToID = nil
+                        }
+                    }
                 }
             }
         }
@@ -274,6 +367,9 @@ struct StudioGridView: View {
                 ClearableTextField(placeholder: "Filter job titles...", text: $filterText)
                     .frame(minWidth: 250)
                     .focused(isJobFilterFocused)
+                
+                Toggle("Hide Empty", isOn: $hideEmpty)
+                    .help("Hide studios with no matching jobs")
 
                 Button(action: {
                     Task { await reloadAllAction() }

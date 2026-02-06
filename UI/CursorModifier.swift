@@ -42,4 +42,14 @@ extension View {
     func draggableCursor() -> some View {
         self.modifier(DraggableCursorModifier())
     }
+
+    func pointingCursor() -> some View {
+        self.onHover { hovering in
+            if hovering {
+                NSCursor.pointingHand.set()
+            } else {
+                NSCursor.arrow.set()
+            }
+        }
+    }
 }

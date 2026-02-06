@@ -14,8 +14,9 @@ class ImageCache: ObservableObject {
         try? fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true, attributes: nil)
     }
 
-    func loadImageData(for url: URL) async -> Data? {
-        let fileURL = cacheDirectory.appendingPathComponent(url.lastPathComponent)
+    func loadImageData(for url: URL, studioId: String) async -> Data? {
+        // Use .png for processed images in cache
+        let fileURL = cacheDirectory.appendingPathComponent("\(studioId).png")
         
         // Check cache first
         if let data = try? Data(contentsOf: fileURL) {
@@ -24,24 +25,93 @@ class ImageCache: ObservableObject {
 
         // If not in cache, download
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            try data.write(to: fileURL)
+            var request = URLRequest(url: url)
+            request.addValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+            request.addValue("image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8", forHTTPHeaderField: "Accept")
+            request.addValue("https://www.google.com/", forHTTPHeaderField: "Referer")
+            
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                print("Failed to download image from \(url), status code: \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+                return nil
+            }
+
+            guard let rawImage = NSImage(data: data) else {
+                print("Failed to create NSImage from data for \(url)")
+                return nil
+            }
+            
+            // Process the image
+            let dataString = String(data: data.prefix(512), encoding: .utf8)?.lowercased() ?? ""
+            let isSVG = dataString.contains("<svg") || dataString.contains("<?xml") || url.pathExtension.lowercased() == "svg"
+            
+            var processedImage: NSImage = rawImage
+            
+            if !isSVG {
+                if let bgRemoved = rawImage.removingBackground(tolerance: 0.05) {
+                    if let cropped = bgRemoved.croppedLeavingMargin(marginPercent: 0.1) {
+                        processedImage = cropped
+                    } else {
+                        processedImage = bgRemoved
+                    }
+                }
+            }
+            
+            // Always tint white
+            let tintedImage = processedImage.tinted(with: .white)
+            
+            // Save processed image as PNG
+            if let tiff = tintedImage.tiffRepresentation,
+               let bitmap = NSBitmapImageRep(data: tiff),
+               let pngData = bitmap.representation(using: .png, properties: [:]) {
+                try pngData.write(to: fileURL)
+                return pngData
+            }
+            
             return data
         } catch {
             print("Failed to load image data from \(url): \(error)")
             return nil
         }
     }
+    
+    func clearCachedImage(studioId: String) async {
+        // Remove all cached files for this studio ID (any extension)
+        do {
+            let files = try fileManager.contentsOfDirectory(at: cacheDirectory, includingPropertiesForKeys: nil)
+            for file in files {
+                if file.deletingPathExtension().lastPathComponent == studioId {
+                    try? fileManager.removeItem(at: file)
+                }
+            }
+        } catch {
+            print("Failed to clear cached image for \(studioId): \(error)")
+        }
+    }
+    
+    func clearAllCachedImages() async {
+        do {
+            let files = try fileManager.contentsOfDirectory(at: cacheDirectory, includingPropertiesForKeys: nil)
+            for file in files {
+                try? fileManager.removeItem(at: file)
+            }
+        } catch {
+            print("Failed to clear all cached images: \(error)")
+        }
+    }
 }
 
 struct CachedAsyncImage<Fallback: View>: View {
     let url: URL
+    let studioId: String
     private let fallback: () -> Fallback
     @State private var image: NSImage?
     @State private var hasError = false
 
-    init(url: URL, @ViewBuilder fallback: @escaping () -> Fallback) {
+    init(url: URL, studioId: String, @ViewBuilder fallback: @escaping () -> Fallback) {
         self.url = url
+        self.studioId = studioId
         self.fallback = fallback
     }
 
@@ -58,20 +128,9 @@ struct CachedAsyncImage<Fallback: View>: View {
             }
         }
         .task {
-            if let data = await ImageCache.shared.loadImageData(for: url),
+            if let data = await ImageCache.shared.loadImageData(for: url, studioId: studioId),
                let loadedImage = NSImage(data: data) {
-                
-                if let bgRemoved = loadedImage.removingBackground(tolerance: 0.15) {
-                    if let croppedImage = bgRemoved.croppedLeavingMargin() {
-                        let tintedImage = croppedImage.tinted(with: NSColor.white)
-                        self.image = tintedImage
-                    } else {
-                        self.image = bgRemoved.tinted(with: NSColor.white)
-                    }
-                } else {
-                    self.image = loadedImage.tinted(with: NSColor.white)
-                }
-
+                self.image = loadedImage
             } else {
                 self.hasError = true
             }
@@ -85,6 +144,7 @@ struct CachedAsyncImage<Fallback: View>: View {
 extension NSImage {
     
     func tinted(with color: NSColor) -> NSImage {
+        guard self.size.width > 0 && self.size.height > 0 else { return self }
         let newImage = NSImage(size: self.size, flipped: false) { (dstRect) -> Bool in
             self.draw(in: dstRect)
             NSGraphicsContext.current?.cgContext.setBlendMode(.sourceIn)
@@ -104,18 +164,18 @@ extension NSImage {
         let width = bitmap.pixelsWide
         let height = bitmap.pixelsHigh
 
-        // Comprueba si ya tiene transparencia (alfa < 255 en algún pixel)
+        // Check if it already has transparency (alpha < 255 in some pixel)
         for y in 0..<height {
             for x in 0..<width {
                 let alpha = bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 1.0
                 if alpha < 1.0 {
-                    // Ya tiene transparencia, no hacer nada
+                    // Already has transparency, do nothing
                     return self
                 }
             }
         }
 
-        // Función para obtener el color promedio de las esquinas
+        // Function to get the average color of the corners
         func averageCornerColor() -> NSColor? {
             guard let c1 = bitmap.colorAt(x: 0, y: 0),
                   let c2 = bitmap.colorAt(x: width - 1, y: 0),
@@ -133,7 +193,7 @@ extension NSImage {
             return nil
         }
 
-        // Crea contexto para modificar la imagen
+        // Create context to modify the image
         guard let context = CGContext(
             data: nil,
             width: width,
@@ -155,18 +215,18 @@ extension NSImage {
         guard let data = context.data else { return nil }
         let pixelBuffer = data.bindMemory(to: UInt8.self, capacity: width * height * 4)
 
-        // Umbral de tolerancia (0 a 1) para definir “cercano” al color de fondo
+        // Tolerance threshold (0 to 1) to define "close" to the background color
         func colorCloseToBackground(r: UInt8, g: UInt8, b: UInt8) -> Bool {
-            // Convierte bgColor a valores 0-255
+            // Convert bgColor to 0-255 values
             let br = UInt8(bgColor.redComponent * 255)
             let bg = UInt8(bgColor.greenComponent * 255)
             let bb = UInt8(bgColor.blueComponent * 255)
 
-            // Calcula distancia Euclidiana simple normalizada
+            // Calculate simple normalized Euclidean distance
             let dr = Int(r) - Int(br)
             let dg = Int(g) - Int(bg)
             let db = Int(b) - Int(bb)
-            let distance = sqrt(Double(dr*dr + dg*dg + db*db)) / sqrt(3 * 255 * 255) // Normaliza a [0,1]
+            let distance = sqrt(Double(dr*dr + dg*dg + db*db)) / sqrt(3 * 255 * 255) // Normalize to [0,1]
 
             return distance < Double(tolerance)
         }
@@ -179,10 +239,10 @@ extension NSImage {
                 let b = pixelBuffer[i + 2]
                 let a = pixelBuffer[i + 3]
 
-                if a == 0 { continue } // Ya transparente
+                if a == 0 { continue } // Already transparent
 
                 if colorCloseToBackground(r: r, g: g, b: b) {
-                    // Hacer pixel transparente
+                    // Make pixel transparent
                     pixelBuffer[i + 3] = 0
                 }
             }
@@ -192,7 +252,7 @@ extension NSImage {
         return NSImage(cgImage: outputCGImage, size: self.size)
     }
     
-    func croppedLeavingMargin(marginPercent: CGFloat = 0.05) -> NSImage? {
+    func croppedLeavingMargin(marginPercent: CGFloat = 0.1) -> NSImage? {
             guard let cgImage = self.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
             let width = cgImage.width
             let height = cgImage.height

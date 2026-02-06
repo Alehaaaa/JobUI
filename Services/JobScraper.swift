@@ -5,615 +5,552 @@ import SwiftSoup
 public class JobScraper {
     public static let shared = JobScraper()
 
-        public func fetchJobs(for studio: Studio, startingAt: Int = 1) async throws -> (jobs: [Job], total: Int) {
-        switch studio.scrapingStrategy {
-        case "netflix_json":
-            return try await self.fetchNetflixJobs(from: studio, startingAt: startingAt)
-        // For other studios, we'll wrap the result in a tuple. They don't support pagination yet.
-        case "workday_json":
-            let jobs = try await self.fetchPixarJobs(from: studio)
-            return (jobs, jobs.count)
-        case "dreamworks_json":
-            let jobs = try await self.fetchDreamworksJobs(from: studio)
-            return (jobs, jobs.count)
-        case "lever_json":
-            let jobs = try await self.fetchLeverJobs(from: studio)
-            return (jobs, jobs.count)
-        case "bamboohr_json":
-            let jobs = try await self.fetchBambooHRJobs(from: studio)
-            return (jobs, jobs.count)
-        case "smartrecruiters_json":
-            let jobs = try await self.fetchSmartRecruitersJobs(from: studio)
-            return (jobs, jobs.count)
-        case "dneg_html":
-            let jobs = try await self.fetchDnegJobs(from: studio)
-            return (jobs, jobs.count)
-        case "disney_html":
-            let jobs = try await self.fetchDisneyJobs(from: studio)
-            return (jobs, jobs.count)
-        case "ranchito_html":
-            let jobs = try await self.fetchRanchitoJobs(from: studio)
-            return (jobs, jobs.count)
-        case "greenhouse_html":
-            let jobs = try await self.fetchGreenhouseJobs(from: studio)
-            return (jobs, jobs.count)
-        case "mikros_html":
-            let jobs = try await self.fetchMikrosJobs(from: studio)
-            return (jobs, jobs.count)
-        case "fortiche_html":
-            let jobs = try await self.fetchForticheJobs(from: studio)
-            return (jobs, jobs.count)
-        case "steamroller_html":
-            let jobs = try await self.fetchSteamrollerJobs(from: studio)
-            return (jobs, jobs.count)
-        case "framestore_html":
-            let jobs = try await self.fetchFramestoreJobs(from: studio)
-            return (jobs, jobs.count)
-        case "giant_html":
-            let jobs = try await self.fetchGiantJobs(from: studio)
-            return (jobs, jobs.count)
-        case "skydance_html":
-            let jobs = try await self.fetchSkydanceJobs(from: studio)
-            return (jobs, jobs.count)
-        case "illusorium_html":
-            let jobs = try await self.fetchIllusoriumJobs(from: studio)
-            return (jobs, jobs.count)
-        default:
+    public func fetchJobs(for studio: Studio, startingAt: Int = 1) async throws -> (jobs: [Job], total: Int) {
+        guard let scraping = studio.scraping else {
             throw URLError(.unsupportedURL)
         }
-    }
-
-    // MARK: - Scraper Implementations
-    
-    private func fetchNetflixJobs(from studio: Studio, startingAt: Int) async throws -> (jobs: [Job], total: Int) {
-        struct JobPosting: Decodable {
-            let name: String
-            let canonicalPositionUrl: URL
-            let location: String?
-        }
-
-        struct Response: Decodable {
-            let positions: [JobPosting]
-            let count: Int
-        }
-
-        let pageSize = 10 // Correct page size for Netflix API
-
-        guard var components = URLComponents(url: studio.careersUrl, resolvingAgainstBaseURL: false) else {
-            throw URLError(.badURL)
-        }
-
-        components.queryItems = [
-            URLQueryItem(name: "domain", value: "netflix.com"),
-            URLQueryItem(name: "start", value: String(startingAt)),
-            URLQueryItem(name: "num", value: String(pageSize)),
-            URLQueryItem(name: "sort_by", value: "relevance"),
-            URLQueryItem(name: "Teams", value: "Animation"),
-            URLQueryItem(name: "Teams", value: "Feature Animation - Art"),
-            URLQueryItem(name: "Teams", value: "Feature Animation - Editorial + Post"),
-            URLQueryItem(name: "Teams", value: "Feature Animation - Production Management"),
-            URLQueryItem(name: "Teams", value: "Feature Animation - Story"),
-            URLQueryItem(name: "Teams", value: "Feature Animation")
-        ]
-
-        guard let url = components.url else {
-            throw URLError(.badURL)
-        }
-
-        var request = URLRequest(url: url)
-        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
-
-        let (data, _) = try await URLSession.shared.data(for: request)
-        let response = try JSONDecoder().decode(Response.self, from: data)
         
-        let jobs = await response.positions.asyncMap {
-            var location = $0.location
-            if let loc = location {
-                location = loc.components(separatedBy: ",").joined(separator: ", ")
-            }
-            let title = await $0.name.decodingHTMLEntities()
-            return Job(title: title, link: $0.canonicalPositionUrl, location: location)
-        }
-        
-        return (jobs, response.count)
-    }
-    
-    private func fetchSkydanceJobs(from studio: Studio) async throws -> [Job] {
-        let html = try await fetchHTML(from: studio.careersUrl)
-        let doc: Document = try SwiftSoup.parse(html)
-        
-        let sections = try doc.select("div[id^=skydance_animation].mb-60")
-        var jobs: [Job] = []
-
-        for section in sections {
-            let jobElements = try section.select(".mb-40")
-            for element in jobElements {
-                guard
-                    let titleElement = try element.select(".treatment-title-small").first(),
-                    let linkElement = try element.select("a").first()
-                else {
-                    continue
-                }
-
-                let title = try titleElement.text()
-                let linkPath = try linkElement.attr("href")
-                let location = try element.select(".treatment-button").first()?.text()
-
-                if let url = URL(string: linkPath, relativeTo: studio.website) {
-                    jobs.append(Job(title: title, link: url.absoluteURL, location: location))
+        let jobsList = try await withThrowingTaskGroup(of: [Job].self) { group in
+            for url in studio.careersUrl {
+                group.addTask {
+                    switch scraping.strategy {
+                    case "json":
+                        return try await self.fetchJSON(for: studio, from: url)
+                    case "html":
+                        return try await self.fetchHTML(for: studio, from: url)
+                    case "json_text":
+                        return try await self.fetchJSONText(for: studio, from: url)
+                    case "rss":
+                        return try await self.fetchRSS(for: studio, from: url)
+                    default:
+                        throw URLError(.unsupportedURL)
+                    }
                 }
             }
+            
+            var collected: [Job] = []
+            var seenLinks = Set<String>()
+            
+            while let jobs = try await group.next() {
+                for job in jobs {
+                    let linkString = job.link.absoluteString.lowercased()
+                    if !seenLinks.contains(linkString) {
+                        collected.append(job)
+                        seenLinks.insert(linkString)
+                    }
+                }
+            }
+            return collected
         }
-        return jobs
+        
+        return (jobsList.sorted(by: { $0.title < $1.title }), jobsList.count)
     }
 
-    private func fetchPixarJobs(from studio: Studio) async throws -> [Job] {
-        struct JobPosting: Codable { let title: String; let externalPath: String }
-        struct Response: Codable { let jobPostings: [JobPosting] }
+    // MARK: - Generic Scrapers
+    
+    private func fetchJSON(for studio: Studio, from url: URL) async throws -> [Job] {
+        guard let scraping = studio.scraping else { return [] }
         
-        var request = URLRequest(url: studio.careersUrl)
-        request.httpMethod = "POST"
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        let jsonBody = ["appliedFacets": [:], "limit": 20, "searchText": ""] as [String: Any]
-        request.httpBody = try JSONSerialization.data(withJSONObject: jsonBody)
-
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        if let params = scraping.params {
+            components.queryItems = params.flatMap { (key, value) -> [URLQueryItem] in
+                if case .array(let items) = value {
+                    return items.map { URLQueryItem(name: key, value: $0.stringValue) }
+                }
+                return [URLQueryItem(name: key, value: value.stringValue)]
+            }
+        }
+        
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = scraping.method ?? "GET"
+        
+        if let headers = scraping.headers {
+            for (key, value) in headers {
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+        }
+        
+        if let payload = scraping.payload {
+            let encoder = JSONEncoder()
+            request.httpBody = try encoder.encode(payload)
+            if request.value(forHTTPHeaderField: "Content-Type") == nil {
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            }
+        } else if let formData = scraping.formData {
+            let bodyString = formData.map { "\($0.key)=\($0.value.stringValue.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")" }.joined(separator: "&")
+            request.httpBody = bodyString.data(using: .utf8)
+            request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        }
+        
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        
         let (data, _) = try await URLSession.shared.data(for: request)
-        let response = try JSONDecoder().decode(Response.self, from: data)
+        let json = try JSONSerialization.jsonObject(with: data)
         
-        let jobs = await response.jobPostings.asyncMap {
-            let title = await $0.title.decodingHTMLEntities()
-            return Job(title: title, link: studio.website.appendingPathComponent($0.externalPath), location: nil)
-        }
-        return jobs
-    }
-
-    private func fetchDreamworksJobs(from studio: Studio) async throws -> [Job] {
-        struct JobPosting: Codable { let title: String; let field_detailurl: URL; let field_location: String }
-        struct ResponseData: Codable { let rows: [JobPosting] }
-        
-        let (data, _) = try await URLSession.shared.data(from: studio.careersUrl)
-        let response = try JSONDecoder().decode([ResponseData].self, from: data)
-        
-        let jobs = await response.first?.rows.asyncMap {
-            let title = await $0.title.decodingHTMLEntities()
-            let location = await $0.field_location.decodingHTMLEntities()
-            return Job(title: title, link: $0.field_detailurl, location: location)
-        }
-        return jobs ?? []
-    }
-
-    private func fetchDisneyJobs(from studio: Studio) async throws -> [Job] {
-        let html = try await fetchHTML(from: studio.careersUrl)
-        let doc: Document = try SwiftSoup.parse(html)
-        let jobRows: Elements = try doc.select("tr:has(span.job-location)")
-        
-        return try jobRows.compactMap { row -> Job? in
-            guard
-                let titleElement = try row.select("h2").first(),
-                let linkElement = try row.select("a").first(),
-                let locationElement = try row.select("span.job-location").first()
-            else {
-                return nil
-            }
-            
-            let title = try titleElement.text()
-            let href = try linkElement.attr("href")
-            let location = try locationElement.text()
-            
-            return Job(title: title, link: studio.website.appendingPathComponent(href), location: location)
-        }
+        return try await parseJSONItems(json, for: studio, from: url)
     }
     
-    private func fetchRanchitoJobs(from studio: Studio) async throws -> [Job] {
-        let html = try await fetchHTML(from: studio.careersUrl)
-        let doc: Document = try SwiftSoup.parse(html)
-        let jobElements: Elements = try doc.select("li:has(h5.post-date)")
-
-        return try jobElements.compactMap { element -> Job? in
-            guard
-                let h2 = try element.select("h2").first(),
-                let a = try element.select("a").first(),
-                let h5 = try element.select("h5.post-date").first()
-            else {
-                return nil
-            }
-
-            let title = try h2.text()
-            let link = try a.attr("href")
-            let location = try h5.text()
-
-            return Job(
-                title: title,
-                link: studio.website.appendingPathComponent(link),
-                location: location
-            )
-        }
-    }
-    
-    private func fetchDnegJobs(from studio: Studio) async throws -> [Job] {
-
-        let html = try await fetchHTML(from: studio.careersUrl)
-        let doc: Document = try SwiftSoup.parse(html)
-        let jobRows: Elements = try doc.select("li.mb1")
-
-        return try jobRows.compactMap { row -> Job? in
-            guard
-                let titleElement = try row.select("p").first(),
-                let linkElement = try row.select("a").first(),
-                let locationElement = try row.select("div.jv-job-list-location").first()
-            else {
-                return nil
-            }
-
-            let title = try titleElement.text().trimmingCharacters(in: .whitespacesAndNewlines)
-            let link = try linkElement.attr("href")
-            let rawLocation = try locationElement.text()
-            let location = rawLocation
-                .components(separatedBy: .whitespacesAndNewlines)
-                .filter { !$0.isEmpty }
-                .joined(separator: " ")
-
-            guard let url = URL(string: "https://jobs.jobvite.com\(link)") else {
-                return nil
-            }
-
-            return Job(title: title, link: url, location: location)
-        }
-    }
-
-
-
-    private func fetchGreenhouseJobs(from studio: Studio) async throws -> [Job] {
-        let html = try await fetchHTML(from: studio.careersUrl)
-        let doc: Document = try SwiftSoup.parse(html)
-        let jobRows: Elements = try doc.select("tr.job-post")
-
-        return try jobRows.compactMap { row -> Job? in
-            guard
-                let titleElement = try row.select("p").first(),
-                let linkElement = try row.select("a").first(),
-                let locationElement = try row.select("p.body__secondary").first()
-            else {
-                return nil
-            }
-            
-            let title = try titleElement.text()
-            let link = try linkElement.attr("href")
-            let location = try locationElement.text()
-            
-            guard let url = URL(string: link) else { return nil }
-
-            return Job(title: title, link: url, location: location)
-        }
-    }
-    
-    private func fetchLeverJobs(from studio: Studio) async throws -> [Job] {
-        struct JobPosting: Decodable {
-            let text: String
-            let hostedUrl: URL
-            let categories: Categories
-            struct Categories: Decodable {
-                let location: String?
-            }
-        }
-        let (data, _) = try await URLSession.shared.data(from: studio.careersUrl)
-        let postings = try JSONDecoder().decode([JobPosting].self, from: data)
-        return await postings.asyncMap {
-            let title = await $0.text.decodingHTMLEntities()
-            return Job(title: title, link: $0.hostedUrl, location: $0.categories.location)
-        }
-    }
-
-    private func fetchBambooHRJobs(from studio: Studio) async throws -> [Job] {
-        struct JobPosting: Decodable {
-            let id: String
-            let jobOpeningName: String
-            let location: Location?
-            
-            struct Location: Decodable {
-                let city: String?
-                let state: String?
-            }
-        }
-
-        struct Response: Decodable {
-            let result: [JobPosting]
-        }
-
-        guard let url = URL(string: "\(studio.careersUrl)/careers/list") else {
-            throw URLError(.badURL)
-        }
-        let (data, _) = try await URLSession.shared.data(from: url)
-
-        let response = try JSONDecoder().decode(Response.self, from: data)
-
-        return await response.result.asyncMap {
-            let city = $0.location?.city?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let state = $0.location?.state?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            let location = [city, state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
-            let title = await $0.jobOpeningName.decodingHTMLEntities()
-
-            return Job(
-                title: title,
-                link: studio.website.appendingPathComponent("careers/\($0.id)"),
-                location: location
-            )
-        }
-    }
-
-
-    private func fetchSmartRecruitersJobs(from studio: Studio) async throws -> [Job] {
-        struct JobPosting: Decodable {
-            let name: String
-            let id: String
-            let location: Categories
-            struct Categories: Decodable {
-                let fullLocation: String?
-            }
-        }
-        struct Response: Decodable { let content: [JobPosting] }
-        let (data, _) = try await URLSession.shared.data(from: studio.careersUrl)
-        let response = try JSONDecoder().decode(Response.self, from: data)
-        return await response.content.asyncMap {
-            let title = await $0.name.decodingHTMLEntities()
-            return Job(title: title, link: studio.website.appendingPathComponent($0.id), location: $0.location.fullLocation)
-        }
-    }
-
-    private func fetchMikrosJobs(from studio: Studio) async throws -> [Job] {
-        // "https://www.mikrosanimation.com/wp-json/mikros/api/jobs/"
-        // "https://www.mikrosanimation.com/en/people-and-culture/careers/"
-        struct JobPosting: Decodable {
-            let name: String
-            let id: String
-            let location: Categories
-            struct Categories: Decodable {
-                let fullLocation: String?
-            }
-            let department: House
-            struct House: Decodable {
-                let label: String?
-            }
-        }
-
-        struct Response: Decodable {
-            let content: [JobPosting]
-        }
-
-        let (data, _) = try await URLSession.shared.data(from: studio.careersUrl)
-        let response = try JSONDecoder().decode(Response.self, from: data)
-
-        let filteredJobs = response.content.filter {
-            $0.department.label?.hasPrefix("Mikros Animation") == true
-        }
-
-        return await filteredJobs.asyncMap {
-            let title = await $0.name.decodingHTMLEntities()
-            return Job(
-                title: title,
-                link: studio.website.appendingPathComponent($0.id),
-                location: $0.location.fullLocation
-            )
-        }
-    }
-
-/*        struct Response: Codable {
-            let reportEntry: [JobData]
-            enum CodingKeys: String, CodingKey { case reportEntry = "Report_Entry" }
-        }
-        struct JobData: Codable {
-            let title: String, url: String, city: String, country: String
-            enum CodingKeys: String, CodingKey { case title, url, city, country = "Country" }
-        }
-
-        let url = URL(string: "https://www.mikrosanimation.com/wp-json/mikros/api/jobs/")!
-        let (data, _) = try await URLSession.shared.data(from: url)
+    private func parseJSONItems(_ json: Any, for studio: Studio, from url: URL) async throws -> [Job] {
+        guard let scraping = studio.scraping else { return [] }
+        let mapping = scraping.map ?? [:]
         
-        guard let jsonString = String(data: data, encoding: .utf8),
-              jsonString.trimmingCharacters(in: .whitespacesAndNewlines) != "false",
-              let innerJsonData = jsonString.data(using: .utf8) else {
+        var items = extractJSON(json, path: scraping.path ?? "")
+        if !(items is [[String: Any]]) && !(items is [Any]) {
+            if let single = items as? [String: Any] {
+                items = [single]
+            } else {
+                return []
+            }
+        }
+        
+        var itemArray: [[String: Any]] = []
+        if let directArray = items as? [[String: Any]] {
+            itemArray = directArray
+        } else if let anyArray = items as? [Any] {
+            itemArray = anyArray.compactMap { $0 as? [String: Any] }
+        } else {
             return []
         }
-
-        let jobData: Response
-        do {
-            let innerJsonString = try JSONDecoder().decode(String.self, from: innerJsonData)
-            guard let finalJsonData = innerJsonString.data(using: .utf8) else { return [] }
-            jobData = try JSONDecoder().decode(Response.self, from: finalJsonData)
-        } catch {
-            jobData = try JSONDecoder().decode(Response.self, from: innerJsonData)
+        
+        // Filter
+        if let filter = scraping.filter {
+            itemArray = itemArray.filter { item in
+                let val = String(describing: extractJSON(item, path: filter.key) ?? "")
+                return val.lowercased().hasPrefix(filter.startswith.lowercased())
+            }
         }
         
-        return jobData.reportEntry.compactMap { entry -> Job? in
-            var city = entry.city
-            if city.contains(",") {
-                city = city.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.reversed().joined(separator: " ")
-            }
-            let location = "\(city), \(entry.country)"
-            guard let url = URL(string: entry.url) else { return nil }
-            return Job(title: entry.title, link: url, location: location)
-        }
-    } */
-
-    private func fetchForticheJobs(from studio: Studio) async throws -> [Job] {
-        let html = try await fetchHTML(from: studio.careersUrl)
-        let doc: Document = try SwiftSoup.parse(html)
-        let jobElements: Elements = try doc.select(".jet-engine-listing-overlay-wrap")
-
-        return try jobElements.compactMap { element -> Job? in
-            guard let titleElement = try element.select("h3").first() else { return nil }
-            let title = try titleElement.text()
-            let link = try element.attr("data-url")
-            guard let url = URL(string: link) else { return nil }
-            return Job(title: title, link: url, location: nil)
-        }
-    }
-
-    private func fetchSteamrollerJobs(from studio: Studio) async throws -> [Job] {
-        let html = try await fetchHTML(from: studio.careersUrl)
-        let doc: Document = try SwiftSoup.parse(html)
-        let jobElements: Elements = try doc.select("div.css-aapqz6")
-
-        return try jobElements.compactMap { element -> Job? in
-            guard
-                let titleElement = try element.select("a[href]").first(),
-                let locationElement = try element.select("span[data-icon=LOCATION_OUTLINE] + p").first()
-            else {
-                return nil
-            }
+        var jobs: [Job] = []
+        for item in itemArray {
+            let title = applyMapping(to: "title", item: item, mapping: mapping, rootURL: url)
+            let linkStr = applyMapping(to: "link", item: item, mapping: mapping, rootURL: url)
+            let location = applyMapping(to: "location", item: item, mapping: mapping, rootURL: url)
+            let extraLinkStr = applyMapping(to: "extra_link", item: item, mapping: mapping, rootURL: url)
             
-            let title = try titleElement.text()
-            let link = try titleElement.attr("href")
-            let location = try locationElement.text()
-
-            guard link.contains("/jobs/"), let url = URL(string: link, relativeTo: studio.website) else { return nil }
-
-            return Job(title: title, link: url.absoluteURL, location: location)
+            if let job = processJob(title: title, linkStr: linkStr, location: location, extraLinkStr: extraLinkStr, studio: studio, url: url, mapping: mapping) {
+                jobs.append(job)
+            }
         }
+        
+        return jobs
     }
     
-    private func fetchIllusoriumJobs(from studio: Studio) async throws -> [Job] {
-        let html = try await fetchHTML(from: studio.careersUrl)
-        let doc: Document = try SwiftSoup.parse(html)
-
-        let rowContainers: Elements = try doc.select("div.row-container")
-        var seenURLs = Set<String>()
-        var jobs = [Job]()
-
-        for container in rowContainers.array() {
-            guard let btnContainer = try? container.select("span.btn-container").first(),
-                  let linkElement = try? btnContainer.select("a[href]").first(),
-                  let href = try? linkElement.attr("href"),
-                  href.contains("/job_posting/"),
-                  let jobURL = URL(string: href, relativeTo: studio.website)
-            else {
-                continue
-            }
-
-            if seenURLs.contains(href) {
-                continue
-            }
-            seenURLs.insert(href)
-
-            var title = try? container.select("div.uncode_text_column.text-lead h4").first()?.text()
-
-            if title == nil {
-                title = try? container.select("div.uncode_text_column.text-lead p").first()?.text()
-            }
-
-            let finalTitle = title ?? "Title not found"
-
-            jobs.append(Job(title: finalTitle, link: jobURL.absoluteURL, location: ""))
+    private func fetchJSONText(for studio: Studio, from url: URL) async throws -> [Job] {
+        guard let scraping = studio.scraping else { return [] }
+        let htmlResponse = try await fetchHTMLContent(from: url, method: scraping.method ?? "GET", payload: scraping.payload, headers: scraping.headers)
+        let doc = try SwiftSoup.parse(htmlResponse)
+        
+        let regex: String
+        if let customRegex = scraping.jsonText?.regex {
+            regex = customRegex
+        } else if let varName = scraping.jsonText?.variable {
+            regex = "(?:const|var|let)\\s+\(varName)\\s*=\\s*(\\[.*\\])\\s*;?"
+        } else {
+            regex = "const jobsData\\s*=\\s*(\\[.*\\])\\s*;?"
         }
-
-        return jobs
+        
+        var text = ""
+        // 1. Try script tags first
+        if let scripts = try? doc.select(normalizeSelector(scraping.container ?? "script")) {
+            let nsRegex = try? NSRegularExpression(pattern: regex, options: [.dotMatchesLineSeparators])
+            for s in scripts {
+                let contents = s.data()
+                if !contents.isEmpty {
+                    let nsRange = NSRange(contents.startIndex..., in: contents)
+                    if let _ = nsRegex?.firstMatch(in: contents, range: nsRange) {
+                        text = contents
+                        break
+                    }
+                }
+            }
+        }
+        
+        // 2. Fallback: Search the entire raw HTML response
+        if text.isEmpty {
+            let nsRegex = try? NSRegularExpression(pattern: regex, options: [.dotMatchesLineSeparators])
+            let nsRange = NSRange(htmlResponse.startIndex..., in: htmlResponse)
+            if let _ = nsRegex?.firstMatch(in: htmlResponse, range: nsRange) {
+                text = htmlResponse
+            }
+        }
+        
+        if !text.isEmpty {
+            if let nsRegex = try? NSRegularExpression(pattern: regex, options: [.dotMatchesLineSeparators]) {
+                let nsRange = NSRange(text.startIndex..., in: text)
+                if let firstMatch = nsRegex.firstMatch(in: text, range: nsRange),
+                   firstMatch.numberOfRanges > 1 {
+                    let groupRange = firstMatch.range(at: 1)
+                    if let r = Range(groupRange, in: text) {
+                        let jsonStr = String(text[r])
+                        if let jsonData = jsonStr.data(using: .utf8),
+                           let json = try? JSONSerialization.jsonObject(with: jsonData) {
+                            return try await parseJSONItems(json, for: studio, from: url)
+                        }
+                    }
+                }
+            }
+        }
+        return []
     }
-
-
-    private func fetchFramestoreJobs(from studio: Studio) async throws -> [Job] {
-        var request = URLRequest(url: studio.careersUrl)
-        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
-
-        let (data, _) = try await URLSession.shared.data(for: request)
-        guard let html = String(data: data, encoding: .utf8) else {
-            throw NSError(domain: "FetchError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid HTML encoding"])
-        }
-
-        let doc = try SwiftSoup.parse(html)
-        let jobRows = try doc.select("div").filter { div in
-            let childAnchor = try div.select("> a[href^=/o/]").first()
-            return childAnchor != nil
-        }
-
-        var seen = Set<String>()
+    
+    private func fetchHTML(for studio: Studio, from url: URL) async throws -> [Job] {
+        guard let scraping = studio.scraping else { return [] }
+        let mapping = scraping.map ?? [:]
+        
+        let htmlResponse = try await fetchHTMLContent(from: url, method: scraping.method ?? "GET", payload: scraping.payload, headers: scraping.headers)
+        let doc = try SwiftSoup.parse(htmlResponse)
+        
+        guard let containerSelector = scraping.container else { return [] }
+        let items = try doc.select(normalizeSelector(containerSelector))
+        
         var jobs: [Job] = []
-
-        for row in jobRows {
-            guard let titleElement = try row.select("a[href^=/o/]").first() else { continue }
-
-            let href = try titleElement.attr("href")
-            if seen.contains(href) { continue }
-
-            let title = try titleElement.text()
-            if title.lowercased() == "view job" { continue }
-
-            seen.insert(href)
-
-            let cityElement = try row.select(".custom-css-style-job-location-city").first()
-            let countryElement = try row.select(".custom-css-style-job-location-country").first()
-
-            var location: String?
-            if let city = try cityElement?.text(), let country = try countryElement?.text() {
-                location = "\(city), \(country)"
+        for item in items {
+            let title = applyMappingHTML(to: "title", element: item, mapping: mapping, rootURL: url)
+            let linkStr = applyMappingHTML(to: "link", element: item, mapping: mapping, rootURL: url, defaultAttr: "href")
+            let location = applyMappingHTML(to: "location", element: item, mapping: mapping, rootURL: url)
+            let extraLinkStr = applyMappingHTML(to: "extra_link", element: item, mapping: mapping, rootURL: url, defaultAttr: "html")
+            
+            if let job = processJob(title: title, linkStr: linkStr, location: location, extraLinkStr: extraLinkStr, studio: studio, url: url, mapping: mapping, element: item) {
+                jobs.append(job)
             }
-
-            guard let jobURL = URL(string: href, relativeTo: studio.careersUrl) else { continue }
-
-            jobs.append(Job(title: title, link: jobURL, location: location))
         }
-
+        
         return jobs
     }
-
-
-
-    private func fetchGiantJobs(from studio: Studio) async throws -> [Job] {
-        let html = try await fetchHTML(from: studio.careersUrl)
-        let doc: Document = try SwiftSoup.parse(html)
-        let jobElements: Elements = try doc.select(".g-careers .row .col-12")
-
-        return try jobElements.compactMap { element -> Job? in
-            guard
-                let titleElement = try element.select("h4").first(),
-                let locationElement = try element.select("span").first(),
-                let linkElement = try element.select("a").first()
-            else {
-                return nil
+    
+    private func fetchRSS(for studio: Studio, from url: URL) async throws -> [Job] {
+        guard let scraping = studio.scraping else { return [] }
+        let mapping = scraping.map ?? [:]
+        
+        let xmlResponse = try await fetchHTMLContent(from: url)
+        let doc = try SwiftSoup.parse(xmlResponse, "", Parser.xmlParser())
+        
+        let containerSelector = scraping.container ?? "item"
+        let items = try doc.select(containerSelector)
+        
+        var jobs: [Job] = []
+        for item in items {
+            let title = applyMappingRSS(to: "title", element: item, mapping: mapping, rootURL: url, defaultTag: "title")
+            let linkStr = applyMappingRSS(to: "link", element: item, mapping: mapping, rootURL: url, defaultTag: "link")
+            let location = applyMappingRSS(to: "location", element: item, mapping: mapping, rootURL: url, defaultTag: "description")
+            
+            if let job = processJob(title: title, linkStr: linkStr, location: location, extraLinkStr: "", studio: studio, url: url, mapping: mapping) {
+                jobs.append(job)
             }
-            
-            let title = try titleElement.text()
-            let location = try locationElement.text()
-            let link = try linkElement.attr("href")
-            
-            guard let url = URL(string: link) else { return nil }
-
-            return Job(title: title, link: url, location: location)
         }
+        
+        return jobs
+    }
+    
+    private func processJob(title: String, linkStr: String, location: String, extraLinkStr: String, studio: Studio, url: URL, mapping: [String: ScrapingMapValue], element: Element? = nil) -> Job? {
+        var cleanedTitle = cleanText(title)
+        let cleanedLocation = cleanText(location)
+        
+        if mapping["remove_location_from_title"]?.removeLocationFromTitle == true || mapping["title"]?.removeLocationFromTitle == true {
+            cleanedTitle = cleanText(removeLocationFromTitle(title: cleanedTitle, location: cleanedLocation))
+        }
+        
+        // Strategy-specific fallbacks
+        if cleanedTitle.isEmpty, let element = element, studio.scraping?.container?.contains("h2") == true {
+            cleanedTitle = cleanText((try? element.text()) ?? "")
+        }
+        
+        if cleanedTitle.isEmpty || ["view job", "details", "read more", "apply", "careers", "unknown"].contains(cleanedTitle.lowercased()) {
+            return nil
+        }
+        
+        let link: URL
+        if linkStr.isEmpty {
+            link = (studio.website ?? url).absoluteURL
+        } else if let l = URL(string: linkStr, relativeTo: studio.website ?? url) {
+            link = l.absoluteURL
+        } else {
+            return nil
+        }
+        
+        var extraLink: URL? = nil
+        if !extraLinkStr.isEmpty {
+            if let extraCfg = mapping["extra_link"], let regex = extraCfg.regexLink {
+                if let nsRegex = try? NSRegularExpression(pattern: regex) {
+                    let nsRange = NSRange(extraLinkStr.startIndex..., in: extraLinkStr)
+                    if let firstMatch = nsRegex.firstMatch(in: extraLinkStr, range: nsRange) {
+                        let matchRange = firstMatch.range(at: firstMatch.numberOfRanges > 1 ? 1 : 0)
+                        if let r = Range(matchRange, in: extraLinkStr) {
+                            extraLink = URL(string: String(extraLinkStr[r]), relativeTo: studio.website ?? url)
+                        }
+                    }
+                }
+            } else {
+                extraLink = URL(string: extraLinkStr, relativeTo: studio.website ?? url)
+            }
+        }
+        
+        return Job(title: cleanedTitle, link: link, location: cleanedLocation.isEmpty ? nil : cleanedLocation, extraLink: extraLink?.absoluteURL)
     }
 
-    // MARK: - Scraper Utilities
+    // MARK: - Utilities
+    
+    private func extractJSON(_ data: Any, path: String) -> Any? {
+        if path.isEmpty { return data }
+        
+        // Support fallback paths
+        if path.contains(",") {
+            let paths = path.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            for p in paths {
+                if let val = extractJSON(data, path: p), !(val is NSNull) {
+                    if let s = val as? String, s.isEmpty { continue }
+                    return val
+                }
+            }
+            return nil
+        }
+        
+        let parts = path.components(separatedBy: ".")
+        var current: Any? = data
+        
+        for part in parts {
+            var key = part
+            var index: Int? = nil
+            
+            if part.contains("[") && part.contains("]") {
+                let bits = part.components(separatedBy: "[")
+                key = bits[0]
+                let indexBit = bits[1].replacingOccurrences(of: "]", with: "")
+                if indexBit == "*" {
+                    // Wildcard handle
+                    if let dict = current as? [String: Any], let next = dict[key] as? [Any] {
+                        return next // Return the whole array
+                    } else if let array = current as? [Any] {
+                        return array
+                    }
+                } else {
+                    index = Int(indexBit)
+                }
+            }
+            
+            if !key.isEmpty {
+                if let dict = current as? [String: Any] {
+                    current = dict[key]
+                } else {
+                    return nil
+                }
+            }
+            
+            if let idx = index, let array = current as? [Any] {
+                if idx >= 0 && idx < array.count {
+                    current = array[idx]
+                } else {
+                    return nil
+                }
+            }
+        }
+        
+        return current
+    }
 
-    private func fetchHTML(from url: URL) async throws -> String {
+    private func applyMapping(to field: String, item: [String: Any], mapping: [String: ScrapingMapValue], rootURL: URL) -> String {
+        guard let mapValue = mapping[field] else { return "" }
+        
+        var val: String = ""
+        if mapValue.source == "url" {
+            val = rootURL.absoluteString
+        } else if let path = mapValue.path {
+            val = String(describing: extractJSON(item, path: path) ?? "")
+        }
+        
+        return finalizeValue(val, config: mapValue)
+    }
+    
+    private func applyMappingHTML(to field: String, element: Element, mapping: [String: ScrapingMapValue], rootURL: URL, defaultAttr: String = "text") -> String {
+        guard let mapValue = mapping[field] else { return "" }
+        
+        var result = ""
+        
+        if mapValue.source == "url" {
+            result = rootURL.absoluteString
+        } else if let findPrevious = mapValue.findPrevious {
+            // Traverse previous siblings and ancestors' previous siblings to find the matching element
+            var found = false
+            var current: Element? = element
+            
+            while let currentElement = current {
+                var sibling = currentElement
+                while let prev = try? sibling.previousElementSibling() {
+                    // Check if this element matches the selector
+                    if let matched = try? prev.select(normalizeSelector(findPrevious)).first() {
+                        result = (try? matched.text()) ?? ""
+                        found = true
+                        break
+                    }
+                    // Also check if the element itself matches
+                    if prev.tagName().lowercased() == findPrevious.lowercased() {
+                        result = (try? prev.text()) ?? ""
+                        found = true
+                        break
+                    }
+                    sibling = prev
+                }
+                if found { break }
+                current = currentElement.parent()
+            }
+        } else {
+            let selector = mapValue.selector ?? ""
+            let attr = mapValue.attr ?? defaultAttr
+            
+            do {
+                let target: Element? = selector.isEmpty ? element : try element.select(normalizeSelector(selector)).first()
+                if let target = target {
+                    if attr == "text" {
+                        result = try target.text()
+                    } else if attr == "html" {
+                        result = try target.outerHtml()
+                    } else {
+                        result = try target.attr(attr)
+                    }
+                }
+            } catch {
+                print("HTML extraction error for \(field): \(error)")
+            }
+        }
+        
+        return finalizeValue(result, config: mapValue)
+    }
+    
+    private func applyMappingRSS(to field: String, element: Element, mapping: [String: ScrapingMapValue], rootURL: URL, defaultTag: String) -> String {
+        guard let mapValue = mapping[field] else {
+            return (try? element.select(defaultTag).first()?.text()) ?? ""
+        }
+        
+        var result = ""
+        if mapValue.source == "url" {
+            result = rootURL.absoluteString
+        } else {
+            let selector = mapValue.selector ?? mapValue.path ?? defaultTag
+            let attr = mapValue.attr ?? "text"
+            
+            do {
+                if let target = try element.select(normalizeSelector(selector)).first() {
+                    if attr == "text" {
+                        result = try target.text()
+                    } else {
+                        result = try target.attr(attr)
+                    }
+                }
+            } catch { }
+        }
+        
+        return finalizeValue(result, config: mapValue)
+    }
+    
+    private func finalizeValue(_ input: String, config: ScrapingMapValue) -> String {
+        var val = input
+        
+        if let split = config.split {
+            let parts = val.components(separatedBy: split.sep)
+            if split.index >= 0 && split.index < parts.count {
+                val = parts[split.index].trimmingCharacters(in: .whitespaces)
+            }
+        }
+        
+        if let regex = config.regex {
+            if let range = val.range(of: regex, options: .regularExpression) {
+                val = String(val[range])
+                // Attempt to get first group if any
+                if let nsRegex = try? NSRegularExpression(pattern: regex) {
+                    let nsRange = NSRange(val.startIndex..., in: val)
+                    if let firstMatch = nsRegex.firstMatch(in: val, range: nsRange), firstMatch.numberOfRanges > 1 {
+                        let groupRange = firstMatch.range(at: 1)
+                        if let r = Range(groupRange, in: val) {
+                            val = String(val[r])
+                        }
+                    }
+                }
+            } else {
+                val = ""
+            }
+        }
+        
+        if !val.isEmpty {
+            if let prefix = config.prefix { val = prefix + val }
+            if let suffix = config.suffix { val = val + suffix }
+        }
+        
+        return val
+    }
+
+    private func fetchHTMLContent(from url: URL, method: String = "GET", payload: [String: JSONValue]? = nil, headers: [String: String]? = nil) async throws -> String {
         var request = URLRequest(url: url)
-        request.addValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        request.httpMethod = method
+        request.addValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        
+        if let headers = headers {
+            for (key, value) in headers {
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+        }
+        
+        if let payload = payload {
+            let encoder = JSONEncoder()
+            request.httpBody = try encoder.encode(payload)
+        }
+        
         let (data, _) = try await URLSession.shared.data(for: request)
         return String(data: data, encoding: .utf8) ?? ""
     }
 
-    private func decodeAndCleanHTML(_ text: String) async -> String {
-        let decoded = await text.decodingHTMLEntities()
-        let stripped = decoded.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-        return stripped.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func normalizeSelector(_ selector: String) -> String {
+        guard !selector.isEmpty else { return selector }
+        // Escape colons in CSS selectors for SwiftSoup compatibility
+        return selector.replacingOccurrences(of: "\\\\", with: "\\")
+    }
+
+    private func removeLocationFromTitle(title: String, location: String?) -> String {
+        guard let location = location, !location.isEmpty, !title.isEmpty else { return title }
+        
+        var result = title
+        
+        // 1. Basic removal of the full location string
+        let escapedLocation = NSRegularExpression.escapedPattern(for: location)
+        if let regex = try? NSRegularExpression(pattern: escapedLocation, options: .caseInsensitive) {
+            result = regex.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result), withTemplate: "")
+        }
+        
+        // 2. Comma separated components
+        if location.contains(",") {
+            let parts = location.components(separatedBy: ",")
+            for p in parts {
+                let pStrip = p.trimmingCharacters(in: .whitespaces)
+                if !pStrip.isEmpty {
+                    let escapedPart = NSRegularExpression.escapedPattern(for: pStrip)
+                    if let regex = try? NSRegularExpression(pattern: "\\b" + escapedPart + "\\b", options: .caseInsensitive) {
+                        result = regex.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result), withTemplate: "")
+                    }
+                }
+            }
+        }
+        
+        // 3. Collapse multiple separators
+        if let regex = try? NSRegularExpression(pattern: "\\s*([ \\-\\|/\\\\·•])\\s*([ \\-\\|/\\\\·•]\\s*)+") {
+            result = regex.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result), withTemplate: " $1 ")
+        }
+        
+        // 4. Remove empty brackets
+        if let regex = try? NSRegularExpression(pattern: "\\(\\s*\\)|\\[\\s*\\]|\\{\\s*\\}") {
+            result = regex.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result), withTemplate: "")
+        }
+        
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func cleanText(_ text: String) -> String {
+        guard !text.isEmpty else { return "" }
+        // Use SwiftSoup for reliable entity decoding and tag stripping
+        let cleaned = (try? SwiftSoup.parse(text).text()) ?? text
+        return cleaned.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "·•| -:"))
     }
 }
 
-// MARK: - String Extension for HTML Decoding
-extension String {
-    @MainActor
-    func decodingHTMLEntities() -> String {
-        guard !self.isEmpty else { return self }
-        guard let data = self.data(using: .utf8) else { return self }
-        let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
-            .documentType: NSAttributedString.DocumentType.html,
-            .characterEncoding: String.Encoding.utf8.rawValue
-        ]
-        guard let attributedString = try? NSAttributedString(data: data, options: options, documentAttributes: nil) else {
-            return self
-        }
-        return attributedString.string
-    }
-}
 
 // MARK: - Collection Extension for Async Operations
 extension Collection {
