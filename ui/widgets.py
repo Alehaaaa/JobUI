@@ -179,7 +179,9 @@ class EmptyStateWidget(QtWidgets.QWidget):
         """Configure for 'no studios added'."""
         self.icon_lbl.setPixmap(resources.get_icon("info.svg").pixmap(100, 100))
         self.title_lbl.setText("No studios setup")
-        self.desc_lbl.setText("It looks like you haven't added any studios yet. Add some to start tracking jobs!")
+        self.desc_lbl.setText(
+            "It looks like you haven't added any studios yet. Add some to start tracking jobs!"
+        )
         self.btn.setText("Add New Studio")
         self.btn.setIcon(resources.get_icon("add.svg"))
         self.btn.setVisible(True)
@@ -220,7 +222,9 @@ class EmptyStateWidget(QtWidgets.QWidget):
         """Configure for initial loading state."""
         self.icon_lbl.setPixmap(resources.get_icon("refresh.svg").pixmap(100, 100))
         self.title_lbl.setText("Checking for jobs...")
-        self.desc_lbl.setText("We're reaching out to studio career pages to find the latest opportunities for you.")
+        self.desc_lbl.setText(
+            "We're reaching out to studio career pages to find the latest opportunities for you."
+        )
         self.btn.setVisible(False)
         self.secondary_btn.setVisible(False)
 
@@ -568,7 +572,7 @@ class ScrollableMenu(OpenMenu):
 
     def addAction(self, action):
         if isinstance(action, str):
-            action = QtWidgets.QAction(action, self)
+            action = QAction(action, self)
 
         if not isinstance(action, QtWidgets.QWidgetAction):
             self._added_actions.append(action)
