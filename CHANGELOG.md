@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.8] - 2026-02-07
+
+### Added
+- **New Studio Integrations**:
+  - **Kojima Productions**: Added support for fetching jobs via their dynamic JSON POST endpoint.
+  - **Squeeze Studio**: Implemented `json_text` scraping strategy to extract embedded configuration data.
+  - **Liquid Development**: Added integration via Workable API.
+- **Scraper Enhancements**:
+  - **Detailed `json_text` Configuration**: Added `unescape` option to handle HTML-encoded JSON strings (e.g., in `data-` attributes).
+
+### Fixed
+- **UI Interactivity**: Resolved an issue where clicking checkable actions in the `ScrollableMenu` would not toggle their state or trigger updates.
+- **Squeeze Scraper**: Fixed JSON parsing by unescaping HTML entities in the embedded data.
+
 ## [0.1.7] - 2026-02-06
 
 ### Added
