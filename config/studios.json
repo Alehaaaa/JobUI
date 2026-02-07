@@ -472,6 +472,24 @@
         }
     },
     {
+        "id": "airshipinteractive",
+        "name": "Airship Interactive",
+        "logo_url": "https://images.teamtailor-cdn.com/images/s3/teamtailor-production/logotype-v3/image_uploads/cbe79bd4-3626-45ee-ba63-e35467190fef/original.png",
+        "careers_url": "https://airshipinteractive.teamtailor.com/jobs",
+        "scraping": {
+            "strategy": "html",
+            "container": "#jobs_list_container li",
+            "map": {
+                "title": "a",
+                "link": "a",
+                "location": {
+                    "selector": "div.mt-1.text-md span",
+                    "index": "-1"
+                }
+            }
+        }
+    },
+    {
         "id": "ilpvfx",
         "name": "Important Looking Pirates VFX",
         "logo_url": "https://www.ilpvfx.com/_astro/logo.DRIecYuS.svg",
@@ -910,6 +928,26 @@
         }
     },
     {
+        "id": "liquiddevelopment",
+        "name": "Liquid Development",
+        "logo_url": "https://workable-application-form.s3.amazonaws.com/advanced/production/624f37fd3502df6fb80dd89d/afd30151-7d8f-956d-895d-ace7cfa0f39a",
+        "careers_url": "https://apply.workable.com/api/v3/accounts/liquid-development/jobs",
+        "website": "https://apply.workable.com/liquid-development/#jobs",
+        "scraping": {
+            "strategy": "json",
+            "method": "POST",
+            "path": "results[*]",
+            "map": {
+                "title": "title",
+                "link": {
+                    "path": "shortcode",
+                    "prefix": "https://apply.workable.com/liquid-development/j/"
+                },
+                "location": "location.display"
+            }
+        }
+    },
+    {
         "id": "threedoubles",
         "name": "3Doubles Producciones",
         "logo_url": "https://www.notodoanimacion.es/wp-content/uploads/2026/01/logo-3Doubles-Producciones-S.L-3.webp",
@@ -1076,6 +1114,71 @@
                     "prefix": "https://careers.blue-zoo.co.uk/vacancies/"
                 },
                 "location": "div[data-id='div_content_VacV_LocationID'] > span"
+            }
+        }
+    },
+    {
+        "id": "squeeze",
+        "name": "Squeeze Studio",
+        "logo_url": "https://careers.recruiteecdn.com/image/upload/q_auto,f_auto,w_400,c_limit/production/images/A9-8/5JM2qBi3Lr06.png",
+        "careers_url": "https://squeezestudio.recruitee.com/l/en/",
+        "scraping": {
+            "strategy": "json_text",
+            "json_text": {
+                "regex": "data-props=\"([^\"]+)\"",
+                "unescape": true
+            },
+            "path": "appConfig.offers[*]",
+            "map": {
+                "title": "translations.en.title",
+                "link": {
+                    "path": "slug",
+                    "prefix": "https://squeezestudio.recruitee.com/o/"
+                },
+                "location": "city"
+            }
+        }
+    },
+    {
+        "id": "kojimaproductions",
+        "name": "Kojima Productions",
+        "logo_url": "https://www.kojimaproductions.jp/themes/kojima_productions/images/lg.kjp.white.png",
+        "careers_url": "https://www.kojimaproductions.jp/kjpviewloader/load",
+        "website": "https://www.kojimaproductions.jp/en/careers",
+        "scraping": {
+            "strategy": "html",
+            "method": "POST",
+            "headers": {
+                "Content-Type": "application/json",
+                "Origin": "https://www.kojimaproductions.jp",
+                "Referer": "https://www.kojimaproductions.jp/en/careers"
+            },
+            "payload": {
+                "viewName": "kjp_view_job_listing",
+                "viewDisplayBase": "kjp_view_job_listing__",
+                "langCode": "en",
+                "inputs": [
+                    {
+                        "name": "jobDiscipline",
+                        "value": "All"
+                    },
+                    {
+                        "name": "jobLocation",
+                        "value": "All"
+                    }
+                ],
+                "page": 0,
+                "writeDate": 1770422442209
+            },
+            "container": "div.job-listing-item",
+            "map": {
+                "title": ".title",
+                "location": ".location",
+                "link": {
+                    "selector": "a",
+                    "attr": "href",
+                    "prefix": "https://www.kojimaproductions.jp"
+                }
             }
         }
     }

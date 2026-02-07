@@ -7,6 +7,9 @@ from .logger import logger
 from .extractor import extract_json, extract_html, extract_items_html
 import urllib3
 
+import html
+import json
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 ssl._create_default_https_context = ssl._create_unverified_context
 
@@ -296,9 +299,10 @@ class JobScraper:
             return []
 
         try:
-            import json
-
             json_str = match.group(1).strip()
+            if jt_cfg.get("unescape"):
+                json_str = html.unescape(json_str)
+
             data = json.loads(json_str)
             items = extract_json(data, scraping.get("path", ""), default=[])
             if not isinstance(items, list):
