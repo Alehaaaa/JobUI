@@ -272,6 +272,24 @@
         }
     },
     {
+        "id": "iconcreative",
+        "name": "Icon Creative Studio",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/ICON_Creative_Studio_Logo.png/960px-ICON_Creative_Studio_Logo.png",
+        "careers_url": "https://iconcreative.bamboohr.com/careers/list",
+        "scraping": {
+            "strategy": "json",
+            "path": "result[*]",
+            "map": {
+                "title": "jobOpeningName",
+                "link": {
+                    "path": "id",
+                    "prefix": "https://iconcreative.bamboohr.com/careers/"
+                },
+                "location": "location.city"
+            }
+        }
+    },
+    {
         "id": "wildchild",
         "name": "Wild Child Animation",
         "logo_url": "https://wildchildanimation.com/wp-content/uploads/2025/05/logo.svg",
@@ -583,7 +601,7 @@
                     "path": "shortcode",
                     "prefix": "https://apply.workable.com/pxo/j/"
                 },
-                "location": "location.display"
+                "location": "location.display, location.city + ', ' + location.country"
             }
         }
     },
@@ -923,7 +941,7 @@
                     "path": "shortcode",
                     "prefix": "https://apply.workable.com/one-of-us/j/"
                 },
-                "location": "location.display"
+                "location": "location.display, location.city + ', ' + location.country"
             }
         }
     },
@@ -943,7 +961,7 @@
                     "path": "shortcode",
                     "prefix": "https://apply.workable.com/liquid-development/j/"
                 },
-                "location": "location.display"
+                "location": "location.display, location.city + ', ' + location.country"
             }
         }
     },
