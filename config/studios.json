@@ -4,7 +4,6 @@
         "name": "Walt Disney Animation",
         "logo_url": "https://upload.wikimedia.org/wikipedia/commons/8/8f/Disney_logo.png",
         "careers_url": "https://jobs.disneycareers.com/search-jobs",
-        "website": "https://jobs.disneycareers.com",
         "scraping": {
             "strategy": "html",
             "params": {
@@ -25,7 +24,6 @@
         "name": "Industrial Light & Magic",
         "logo_url": "https://www.ilm.com/wp-content/uploads/2014/12/ilm_logo_nav_black.svg",
         "careers_url": "https://jobs.disneycareers.com/search-jobs",
-        "website": "https://jobs.disneycareers.com",
         "scraping": {
             "strategy": "html",
             "params": {
@@ -289,6 +287,24 @@
         }
     },
     {
+        "id": "iconcreative",
+        "name": "Icon Creative Studio",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/ICON_Creative_Studio_Logo.png/960px-ICON_Creative_Studio_Logo.png",
+        "careers_url": "https://iconcreative.bamboohr.com/careers/list",
+        "scraping": {
+            "strategy": "json",
+            "path": "result[*]",
+            "map": {
+                "title": "jobOpeningName",
+                "link": {
+                    "path": "id",
+                    "prefix": "https://iconcreative.bamboohr.com/careers/"
+                },
+                "location": "location.city"
+            }
+        }
+    },
+    {
         "id": "wildchild",
         "name": "Wild Child Animation",
         "logo_url": "https://wildchildanimation.com/wp-content/uploads/2025/05/logo.svg",
@@ -474,8 +490,7 @@
         "id": "goodbyekansas",
         "name": "Goodbye Kansas",
         "logo_url": "https://images.teamtailor-cdn.com/images/s3/teamtailor-production/logotype-v3/image_uploads/30eeee22-fd93-4ab3-ba54-c570a4d54c2b/original.png",
-        "careers_url": "https://career.goodbyekansas.com/jobs",
-        "website": "https://goodbyekansas.com/",
+        "careers_url": "https://goodbyekansas.teamtailor.com/jobs",
         "scraping": {
             "strategy": "html",
             "container": "#jobs_list_container li",
@@ -490,11 +505,28 @@
         }
     },
     {
+        "id": "airshipinteractive",
+        "name": "Airship Interactive",
+        "logo_url": "https://images.teamtailor-cdn.com/images/s3/teamtailor-production/logotype-v3/image_uploads/cbe79bd4-3626-45ee-ba63-e35467190fef/original.png",
+        "careers_url": "https://airshipinteractive.teamtailor.com/jobs",
+        "scraping": {
+            "strategy": "html",
+            "container": "#jobs_list_container li",
+            "map": {
+                "title": "a",
+                "link": "a",
+                "location": {
+                    "selector": "div.mt-1.text-md span",
+                    "index": "-1"
+                }
+            }
+        }
+    },
+    {
         "id": "ilpvfx",
         "name": "Important Looking Pirates VFX",
         "logo_url": "https://www.ilpvfx.com/_astro/logo.DRIecYuS.svg",
         "careers_url": "https://ilpvfx.teamtailor.com/jobs",
-        "website": "https://www.ilpvfx.com/",
         "scraping": {
             "strategy": "html",
             "container": "#jobs_list_container li",
@@ -513,7 +545,6 @@
         "name": "The Third Floor",
         "logo_url": "https://cc-client-cdn.clearcompany.com/224aa8b1-7455-9afa-439f-0e0b9c9fa4fa/careersiteimages/stand_alone_custom_logo?_=1769990835",
         "careers_url": "https://thethirdfloorinc.hrmdirect.com/employment/job-openings.php?search=true&",
-        "website": "https://thethirdfloorinc.com/",
         "scraping": {
             "strategy": "html",
             "container": "tr.ReqRowClick",
@@ -550,11 +581,31 @@
         }
     },
     {
+        "id": "nexusstudios",
+        "name": "Nexus Studios",
+        "logo_url": "https://images.squarespace-cdn.com/content/v1/5ae136547e3c3a14ad57c8cf/1571806561753-7LQRGI48E78EXGOTJIJ1/nexus.png",
+        "careers_url": "https://apply.workable.com/api/v3/accounts/nexusstudios/jobs",
+        "website": "https://apply.workable.com/nexusstudios/#jobs",
+        "scraping": {
+            "strategy": "json",
+            "method": "POST",
+            "path": "results[*]",
+            "map": {
+                "title": "title",
+                "link": {
+                    "path": "shortcode",
+                    "prefix": "https://apply.workable.com/nexusstudios/j/"
+                },
+                "location": "location.display, location.city + ', ' + location.country"
+            }
+        }
+    },
+    {
         "id": "pixomondo",
         "name": "Pixomondo",
         "logo_url": "https://amcrs.de/wp-content/uploads/2022/05/PXO-Logo_Black-RGB-1.png",
         "careers_url": "https://apply.workable.com/api/v3/accounts/pxo/jobs",
-        "website": "https://pixomondo.com/",
+        "website": "https://apply.workable.com/pxo/#jobs",
         "scraping": {
             "strategy": "json",
             "method": "POST",
@@ -565,7 +616,7 @@
                     "path": "shortcode",
                     "prefix": "https://apply.workable.com/pxo/j/"
                 },
-                "location": "location.display"
+                "location": "location.display, location.city + ', ' + location.country"
             }
         }
     },
@@ -574,7 +625,6 @@
         "name": "Rise FX",
         "logo_url": "https://www.risefx.com/items/rise-visual-effect-studios-logo.svg",
         "careers_url": "https://risefx.com/rise-visual-effects-studios-jobs.php",
-        "website": "https://risefx.com/",
         "scraping": {
             "strategy": "html",
             "container": ".job-container",
@@ -707,7 +757,6 @@
         "name": "Titmouse",
         "logo_url": "https://cdn3.toonboom.com/wp-content/uploads/2026/01/26140446/Titmouse_logo.png",
         "careers_url": "https://titmouse.net/careers/",
-        "website": "https://titmouse.net/",
         "scraping": {
             "strategy": "html",
             "container": "li.titmouse-external-jobs__item",
@@ -772,7 +821,7 @@
         "id": "brownbag",
         "name": "Brown Bag Films",
         "logo_url": "https://www.brownbagfilms.com/themes/custom/misti/logo.svg",
-        "website": "https://www.brownbagfilms.com/about-us/careers",
+        "website": "https://milo-hr.my.salesforce-sites.com/recruit/fRecruit__ApplyJobList",
         "careers_url": [
             "https://milo-hr.my.salesforce-sites.com/recruit/fRecruit__ApplyJobList?portal=Toronto",
             "https://milo-hr.my.salesforce-sites.com/recruit/fRecruit__ApplyJobList?portal=Dublin"
@@ -896,17 +945,10 @@
         "name": "One of Us",
         "logo_url": "https://workable-application-form.s3.us-east-1.amazonaws.com/advanced/production/667018513e6590e6b6d8cb1f/d17fe696-7624-9b3f-ab4a-0ae70893f65c",
         "careers_url": "https://apply.workable.com/api/v3/accounts/one-of-us/jobs",
-        "website": "https://apply.workable.com/one-of-us/?lng=en",
+        "website": "https://apply.workable.com/one-of-us/#jobs",
         "scraping": {
             "strategy": "json",
             "method": "POST",
-            "payload": {
-                "query": "",
-                "department": [],
-                "location": [],
-                "workplace": [],
-                "worktype": []
-            },
             "path": "results[*]",
             "map": {
                 "title": "title",
@@ -914,7 +956,27 @@
                     "path": "shortcode",
                     "prefix": "https://apply.workable.com/one-of-us/j/"
                 },
-                "location": "location.display"
+                "location": "location.display, location.city + ', ' + location.country"
+            }
+        }
+    },
+    {
+        "id": "liquiddevelopment",
+        "name": "Liquid Development",
+        "logo_url": "https://workable-application-form.s3.amazonaws.com/advanced/production/624f37fd3502df6fb80dd89d/afd30151-7d8f-956d-895d-ace7cfa0f39a",
+        "careers_url": "https://apply.workable.com/api/v3/accounts/liquid-development/jobs",
+        "website": "https://apply.workable.com/liquid-development/#jobs",
+        "scraping": {
+            "strategy": "json",
+            "method": "POST",
+            "path": "results[*]",
+            "map": {
+                "title": "title",
+                "link": {
+                    "path": "shortcode",
+                    "prefix": "https://apply.workable.com/liquid-development/j/"
+                },
+                "location": "location.display, location.city + ', ' + location.country"
             }
         }
     },
@@ -923,7 +985,6 @@
         "name": "3Doubles Producciones",
         "logo_url": "https://www.notodoanimacion.es/wp-content/uploads/2026/01/logo-3Doubles-Producciones-S.L-3.webp",
         "careers_url": "https://3doubles.factorial.es/#jobs",
-        "website": "https://3doubles.factorial.es/",
         "scraping": {
             "strategy": "html",
             "container": "li.job-offer-item[data-job-postings-url]",
@@ -932,6 +993,224 @@
                 "link": "a.buttonSecondary",
                 "location": {
                     "find_previous": "h3"
+                }
+            }
+        }
+    },
+    {
+        "id": "lightbox",
+        "name": "Lightbox Animation Studios",
+        "logo_url": "https://lbox.es/wp-content/uploads/2021/02/logo_Lighbox-Animation-Studios_alpha.png",
+        "careers_url": "https://lightbox-animation-studios.jobs.personio.com/search.json",
+        "website": "https://lightbox-animation-studios.jobs.personio.com/",
+        "scraping": {
+            "strategy": "json",
+            "path": "[*]",
+            "map": {
+                "title": "name",
+                "link": {
+                    "path": "id",
+                    "prefix": "https://lightbox-animation-studios.jobs.personio.com/job/"
+                },
+                "location": "office"
+            }
+        }
+    },
+    {
+        "id": "hampa",
+        "name": "Hampa Studio",
+        "logo_url": "https://hampastudio.com/wp-content/uploads/2024/07/Recurso-3-1.webp",
+        "careers_url": "https://hampastudio.teamtailor.com/jobs",
+        "scraping": {
+            "strategy": "html",
+            "container": "#jobs_list_container li",
+            "map": {
+                "title": "a",
+                "link": "a",
+                "location": {
+                    "selector": "span.text-base span",
+                    "index": "2"
+                }
+            }
+        }
+    },
+    {
+        "id": "realtimeuk",
+        "name": "Realtime",
+        "logo_url": "https://cdn.80.lv/api/upload/vendor/502/607d4bd09d7a6.png",
+        "careers_url": "https://careers.realtimeuk.com/jobs",
+        "scraping": {
+            "strategy": "html",
+            "container": "#jobs_list_container li",
+            "map": {
+                "title": "a",
+                "link": "a",
+                "location": "div.mt-1.text-md"
+            }
+        }
+    },
+    {
+        "id": "superprod",
+        "name": "Superprod",
+        "logo_url": "https://api.superprod.net/upload/media/superprod-logo.svg",
+        "careers_url": "https://careers.werecruit.io/en/superprod",
+        "scraping": {
+            "strategy": "json_text",
+            "json_text": {
+                "variable": "allOffers"
+            },
+            "map": {
+                "title": "TitleTranslated",
+                "link": {
+                    "path": "Slug",
+                    "prefix": "https://careers.werecruit.io/en/superprod/offers/"
+                },
+                "location": "Address_City"
+            }
+        }
+    },
+    {
+        "id": "atlantis",
+        "name": "Atlantis",
+        "logo_url": "https://atlantisanimation.com/app/uploads/2023/01/Atlantis-44-Symbol-DEFINITIVE-1.png",
+        "careers_url": "https://careers.werecruit.io/en/atlantis",
+        "scraping": {
+            "strategy": "json_text",
+            "json_text": {
+                "variable": "allOffers"
+            },
+            "map": {
+                "title": "TitleTranslated",
+                "link": {
+                    "path": "Slug",
+                    "prefix": "https://careers.werecruit.io/en/atlantis/offers/"
+                },
+                "location": "Address_City"
+            }
+        }
+    },
+    {
+        "id": "wildbrain",
+        "name": "WildBrain",
+        "logo_url": "https://static.wikia.nocookie.net/hitentertainment/images/e/e8/WildBrain-logo-stacked-002.png/revision/latest/scale-to-width-down/500?cb=20220730000807",
+        "careers_url": "https://wildbrain-career.talent-soft.com/accueil.aspx?LCID=1033",
+        "scraping": {
+            "strategy": "html",
+            "container": "li.ts-offer-list-item",
+            "map": {
+                "title": "h3.ts-offer-list-item__title a",
+                "link": {
+                    "selector": "h3.ts-offer-list-item__title a",
+                    "attr": "href",
+                    "prefix": "https://wildbrain-career.talent-soft.com"
+                },
+                "location": {
+                    "selector": "ul.ts-offer-list-item__description li.noBorder",
+                    "index": "0",
+                    "default": "Vancouver"
+                }
+            }
+        }
+    },
+    {
+        "id": "buck",
+        "name": "Buck",
+        "logo_url": "https://prowly-prod.s3.eu-west-1.amazonaws.com/uploads/press_rooms/company_logos/30294/538d3032a6f3298ca57cbbfb0c21d726.png",
+        "careers_url": "https://buck.co/careers",
+        "scraping": {
+            "strategy": "json_text",
+            "container": "script#__NEXT_DATA__",
+            "json_text": {
+                "regex": "(.*)"
+            },
+            "path": "props.pageProps.page.modules[*].jobs[*]",
+            "map": {
+                "title": "title",
+                "link": "absoluteUrl",
+                "location": "locationName"
+            }
+        }
+    },
+    {
+        "id": "bluezoo",
+        "name": "Blue Zoo",
+        "logo_url": "https://careers.blue-zoo.co.uk/images/logo-rev.png",
+        "careers_url": "https://careers.blue-zoo.co.uk/vacancies/vacancy-search-results.aspx?view=list",
+        "scraping": {
+            "strategy": "html",
+            "container": "#ctl00_ContentContainer_ctl00_VacancyListView div.vsr-job",
+            "map": {
+                "title": "h2.vsr-job__title a",
+                "link": {
+                    "selector": "h2.vsr-job__title a",
+                    "attr": "href",
+                    "prefix": "https://careers.blue-zoo.co.uk/vacancies/"
+                },
+                "location": "div[data-id='div_content_VacV_LocationID'] > span"
+            }
+        }
+    },
+    {
+        "id": "squeeze",
+        "name": "Squeeze Studio",
+        "logo_url": "https://careers.recruiteecdn.com/image/upload/q_auto,f_auto,w_400,c_limit/production/images/A9-8/5JM2qBi3Lr06.png",
+        "careers_url": "https://squeezestudio.recruitee.com/l/en/",
+        "scraping": {
+            "strategy": "json_text",
+            "json_text": {
+                "regex": "data-props=\"([^\"]+)\"",
+                "unescape": true
+            },
+            "path": "appConfig.offers[*]",
+            "map": {
+                "title": "translations.en.title",
+                "link": {
+                    "path": "slug",
+                    "prefix": "https://squeezestudio.recruitee.com/o/"
+                },
+                "location": "city"
+            }
+        }
+    },
+    {
+        "id": "kojimaproductions",
+        "name": "Kojima Productions",
+        "logo_url": "https://www.kojimaproductions.jp/themes/kojima_productions/images/lg.kjp.white.png",
+        "careers_url": "https://www.kojimaproductions.jp/kjpviewloader/load",
+        "website": "https://www.kojimaproductions.jp/en/careers",
+        "scraping": {
+            "strategy": "html",
+            "method": "POST",
+            "headers": {
+                "Content-Type": "application/json",
+                "Origin": "https://www.kojimaproductions.jp",
+                "Referer": "https://www.kojimaproductions.jp/en/careers"
+            },
+            "payload": {
+                "viewName": "kjp_view_job_listing",
+                "viewDisplayBase": "kjp_view_job_listing__",
+                "langCode": "en",
+                "inputs": [
+                    {
+                        "name": "jobDiscipline",
+                        "value": "All"
+                    },
+                    {
+                        "name": "jobLocation",
+                        "value": "All"
+                    }
+                ],
+                "page": 0,
+                "writeDate": 1770422442209
+            },
+            "container": "div.job-listing-item",
+            "map": {
+                "title": ".title",
+                "location": ".location",
+                "link": {
+                    "selector": "a",
+                    "attr": "href",
+                    "prefix": "https://www.kojimaproductions.jp"
                 }
             }
         }

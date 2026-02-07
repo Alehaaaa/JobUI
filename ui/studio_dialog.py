@@ -52,8 +52,8 @@ class StudioDialog(QtWidgets.QDialog):
 
         mode_title = "Edit" if self.is_edit else "Add"
         self.setWindowTitle(f"{mode_title} Studio")
-        self.setMinimumWidth(600)
-        self.setMinimumHeight(650)
+        self.setMinimumWidth(680)
+        self.setMinimumHeight(600)
 
         self.layout = QtWidgets.QVBoxLayout(self)
         self.layout.setSpacing(10)
@@ -91,14 +91,15 @@ class StudioDialog(QtWidgets.QDialog):
         self.scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
         self.container = QtWidgets.QWidget()
         self.form_layout = QtWidgets.QVBoxLayout(self.container)
-        self.form_layout.setSpacing(15)
+        self.form_layout.setSpacing(10)
         self.scroll.setWidget(self.container)
         self.layout.addWidget(self.scroll)
 
         # -- 1. Basic Info Section --
         basic_group = QtWidgets.QGroupBox("Basic Information")
         basic_form = QtWidgets.QFormLayout(basic_group)
-        basic_form.setSpacing(8)
+        basic_form.setSpacing(4)
+        basic_form.setContentsMargins(8, 12, 8, 8)
 
         self.name_input = QtWidgets.QLineEdit()
         self.name_input.setPlaceholderText("Studio Display Name")
@@ -121,6 +122,8 @@ class StudioDialog(QtWidgets.QDialog):
         # -- 2. Scraping Strategy --
         strat_group = QtWidgets.QGroupBox("Scraping Strategy")
         strat_vbox = QtWidgets.QVBoxLayout(strat_group)
+        strat_vbox.setContentsMargins(8, 8, 8, 8)
+        strat_vbox.setSpacing(5)
 
         h_strat = QtWidgets.QHBoxLayout()
         self.radio_html = QtWidgets.QRadioButton("HTML (CSS Selectors)")
@@ -134,24 +137,33 @@ class StudioDialog(QtWidgets.QDialog):
         h_strat.addStretch()
         strat_vbox.addLayout(h_strat)
 
+        self.strat_group = strat_group
         self.tabs = QtWidgets.QTabWidget()
-        strat_vbox.addWidget(self.tabs)
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+        strat_vbox.addWidget(self.tabs, 1)
 
         # --- TAB: Mapping ---
         self.tab_mapping = QtWidgets.QWidget()
         map_vbox = QtWidgets.QVBoxLayout(self.tab_mapping)
+        map_vbox.setContentsMargins(8, 8, 8, 8)
+        map_vbox.setSpacing(5)
+
         self.stack_root = QtWidgets.QStackedWidget()
         map_vbox.addWidget(self.stack_root)
 
         # HTML Root
         self.page_html_root = QtWidgets.QWidget()
         html_root_form = QtWidgets.QFormLayout(self.page_html_root)
+        html_root_form.setContentsMargins(0, 0, 0, 0)
+        html_root_form.setVerticalSpacing(4)
         self.html_container = QtWidgets.QLineEdit()
         html_root_form.addRow("Container:", self.html_container)
 
         # JSON Root
         self.page_json_root = QtWidgets.QWidget()
         json_root_form = QtWidgets.QFormLayout(self.page_json_root)
+        json_root_form.setContentsMargins(0, 0, 0, 0)
+        json_root_form.setVerticalSpacing(4)
         self.json_path = QtWidgets.QLineEdit()
         json_root_form.addRow("Items Path:", self.json_path)
 
@@ -160,6 +172,8 @@ class StudioDialog(QtWidgets.QDialog):
 
         mapping_group = QtWidgets.QGroupBox("Field Mappings")
         mapping_vbox = QtWidgets.QVBoxLayout(mapping_group)
+        mapping_vbox.setContentsMargins(8, 12, 8, 8)
+        mapping_vbox.setSpacing(2)
 
         self.field_title, self.field_title_opts = self._add_field(mapping_vbox, "Title", options=["source"])
         self.field_link, self.field_link_opts = self._add_field(
@@ -171,37 +185,72 @@ class StudioDialog(QtWidgets.QDialog):
         self.find_prev_widget, self.field_find_prev = self._add_labelled_field(mapping_vbox, "Find Prev (HTML):")
 
         map_vbox.addWidget(mapping_group)
+        map_vbox.addStretch()
         self.tab_mapping.setLayout(map_vbox)
         self.tabs.addTab(self.tab_mapping, "Mappings")
 
         # --- TAB: Request ---
         self.tab_request = QtWidgets.QWidget()
-        req_form = QtWidgets.QFormLayout(self.tab_request)
+        req_vbox = QtWidgets.QVBoxLayout(self.tab_request)
+        req_vbox.setContentsMargins(8, 8, 8, 8)
+        req_vbox.setSpacing(6)
+
+        # Method row
+        h_method = QtWidgets.QHBoxLayout()
+        lbl_method = QtWidgets.QLabel("<b>HTTP Method:</b>")
+        lbl_method.setFixedWidth(100)
+        h_method.addWidget(lbl_method)
         self.req_method = QtWidgets.QComboBox()
         self.req_method.addItems(["GET", "POST"])
-        req_form.addRow("HTTP Method:", self.req_method)
+        h_method.addWidget(self.req_method)
+        h_method.addStretch()
+        req_vbox.addLayout(h_method)
+
+        # Params row
+        h_params = QtWidgets.QHBoxLayout()
+        lbl_params = QtWidgets.QLabel("<b>Params:</b>")
+        lbl_params.setFixedWidth(100)
+        h_params.addWidget(lbl_params, 0, QtCore.Qt.AlignTop)
         self.req_params = QtWidgets.QPlainTextEdit()
         self.req_params.setPlaceholderText('JSON query parameters (e.g. {"category": "vfx"})')
-        self.req_params.setFixedHeight(80)
-        req_form.addRow("Params:", self.req_params)
+        h_params.addWidget(self.req_params)
+        req_vbox.addLayout(h_params, 1)
+
+        # Payload row
+        h_payload = QtWidgets.QHBoxLayout()
+        lbl_payload = QtWidgets.QLabel("<b>Payload:</b>")
+        lbl_payload.setFixedWidth(100)
+        h_payload.addWidget(lbl_payload, 0, QtCore.Qt.AlignTop)
         self.req_payload = QtWidgets.QPlainTextEdit()
-        self.req_payload.setFixedHeight(80)
-        req_form.addRow("Payload:", self.req_payload)
+        h_payload.addWidget(self.req_payload)
+        req_vbox.addLayout(h_payload, 1)
+
+        # Headers row
+        h_headers = QtWidgets.QHBoxLayout()
+        lbl_headers = QtWidgets.QLabel("<b>Headers:</b>")
+        lbl_headers.setFixedWidth(100)
+        h_headers.addWidget(lbl_headers, 0, QtCore.Qt.AlignTop)
         self.req_headers = QtWidgets.QPlainTextEdit()
-        self.req_headers.setFixedHeight(80)
-        req_form.addRow("Headers:", self.req_headers)
+        h_headers.addWidget(self.req_headers)
+        req_vbox.addLayout(h_headers, 1)
+
         self.tabs.addTab(self.tab_request, "Request")
 
         # --- TAB: Filters ---
         self.tab_filters = QtWidgets.QWidget()
         filt_form = QtWidgets.QFormLayout(self.tab_filters)
+        filt_form.setContentsMargins(10, 10, 10, 10)
+        filt_form.setSpacing(6)
         self.filter_key = QtWidgets.QLineEdit()
         filt_form.addRow("Filter Key:", self.filter_key)
         self.filter_sw = QtWidgets.QLineEdit()
         filt_form.addRow("Starts With:", self.filter_sw)
         self.tabs.addTab(self.tab_filters, "JSON Filters")
 
-        self.form_layout.addWidget(strat_group)
+        self.form_layout.addWidget(self.strat_group, 1)
+        self.form_layout.addStretch(0)  # Spacer that takes over when Request tab isn't active
+        self._strat_idx = self.form_layout.count() - 2
+        self._spacer_idx = self.form_layout.count() - 1
 
         # -- Footer --
         btn_layout = QtWidgets.QHBoxLayout()
@@ -221,18 +270,24 @@ class StudioDialog(QtWidgets.QDialog):
         self.layout.addLayout(btn_layout)
 
         # -- Connections --
-        self.radio_html.toggled.connect(self._on_strat_changed)
+        self.radio_html.toggled.connect(lambda: self._on_tab_changed(self.tabs.currentIndex()))
 
         if self.is_edit:
             self.init_data()
         else:
-            self._on_strat_changed()  # Force initial visibility state
+            self._on_tab_changed(self.tabs.currentIndex())  # Force initial visibility state
 
-    def _on_strat_changed(self):
+    def _on_tab_changed(self, index):
         is_html = self.radio_html.isChecked()
         self.stack_root.setCurrentIndex(0 if is_html else 1)
         self.tabs.setTabEnabled(2, not is_html)
         self.find_prev_widget.setVisible(is_html)
+
+        # Dynamic stretch: only expand the strategy group if in Request tab (index 1)
+        # to fulfill "grow to fill space" without making other tabs look empty.
+        is_request = index == 1
+        self.form_layout.setStretch(self._strat_idx, 1 if is_request else 0)
+        self.form_layout.setStretch(self._spacer_idx, 0 if is_request else 1)
 
     def _add_field(self, parent_layout, label, options=None):
         container = QtWidgets.QWidget()
@@ -287,7 +342,6 @@ class StudioDialog(QtWidgets.QDialog):
             opt_h.addStretch()
             vbox.addLayout(opt_h)
         parent_layout.addWidget(container)
-        parent_layout.addSpacing(4)
         return (main_input, opt_widgets) if options else main_input
 
     def _add_labelled_field(self, parent_layout, label, placeholder=""):
@@ -302,7 +356,6 @@ class StudioDialog(QtWidgets.QDialog):
         edit.setPlaceholderText(placeholder)
         h.addWidget(edit)
         parent_layout.addWidget(container)
-        parent_layout.addSpacing(4)
         return container, edit
 
     def init_data(self):
@@ -420,7 +473,7 @@ class StudioDialog(QtWidgets.QDialog):
         if "headers" in scrap:
             pretty_headers = StudioDialog.expand_json(scrap["headers"])
             self.req_headers.setPlainText(json.dumps(pretty_headers, indent=2))
-        self._on_strat_changed()
+        self._on_tab_changed(self.tabs.currentIndex())
 
     def on_save(self):
         sid = self.studio_data.get("id") if self.is_edit else self.id_input.text().strip()

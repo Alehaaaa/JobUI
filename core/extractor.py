@@ -37,24 +37,84 @@ def _tokenize(path: str):
     return tokens
 
 
+def _split_safe(text: str, delimiter: str):
+    """
+    Split text by delimiter, ignoring delimiters inside quotes.
+    """
+    result = []
+    current = []
+    quote_char = None
+
+    for char in text:
+        if quote_char:
+            if char == quote_char:
+                quote_char = None
+            current.append(char)
+        elif char in ("'", '"'):
+            quote_char = char
+            current.append(char)
+        elif char == delimiter:
+            result.append("".join(current).strip())
+            current = []
+        else:
+            current.append(char)
+
+    if current:
+        result.append("".join(current).strip())
+    elif text.endswith(delimiter):
+        result.append("")
+
+    return [r for r in result if r]  # Filter empty splits if any
+
+
+def _is_literal(text: str) -> bool:
+    return len(text) >= 2 and (
+        (text.startswith('"') and text.endswith('"')) or (text.startswith("'") and text.endswith("'"))
+    )
+
+
 def extract_json(data: Any, path: str, default: Any = None) -> Any:
     """
-    Extract values from nested dict/list structures using a simple path string.
-    Supports fallback paths separated by commas: "location.city, atsLocation.city"
-    Examples: "items[*].id", "data.results[0].name"
+    Extract values from nested dict/list structures using a path string.
+    Supports:
+    1. Fallbacks (comma): "pathA, pathB" -> Try A, then B.
+    2. Concatenation (plus): "pathA + ' - ' + pathB" -> "ValueA - ValueB" (only if all parts exist).
+    3. Literals in concatenation: strings enclosed in ' or ".
     """
     if not path:
         return data
 
-    # Support fallback paths: "location.city, atsLocation.city"
+    # 1. Fallbacks (split by comma, respecting quotes)
+    # Only split if comma is present to avoid overhead
     if "," in path:
-        paths = [p.strip() for p in path.split(",")]
-        for p in paths:
-            val = extract_json(data, p, default=None)
-            if val is not None and val != "" and val != []:
-                return val
-        return default
+        options = _split_safe(path, ",")
+        if len(options) > 1:
+            for opt in options:
+                val = extract_json(data, opt, default=None)
+                if val is not None and val != "" and val != []:
+                    return val
+            return default
 
+    # 2. Concatenation (split by plus, respecting quotes)
+    if "+" in path:
+        parts = _split_safe(path, "+")
+        if len(parts) > 1:
+            concat_res = []
+            for part in parts:
+                part = part.strip()
+                if _is_literal(part):
+                    # Remove quotes
+                    concat_res.append(part[1:-1])
+                else:
+                    # Recursive extract
+                    val = extract_json(data, part, default=None)
+                    if val is None or val == "":
+                        # If any part of concatenation is missing, fail this path
+                        return default
+                    concat_res.append(str(val))
+            return "".join(concat_res)
+
+    # 3. Standard Path Extraction
     try:
         tokens = _tokenize(path)
         if not tokens:
