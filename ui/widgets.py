@@ -424,11 +424,7 @@ class MenuItemWidget(QtWidgets.QWidget):
     def mouseReleaseEvent(self, event):
         if not self.action:
             return
-        if self.action.isCheckable():
-            self.action.setChecked(not self.action.isChecked())
-        else:
-            self.action.trigger()
-            self.menu.close()
+        self.action.trigger()
 
     def sizeHint(self):
         fm = self.fontMetrics()
