@@ -80,6 +80,30 @@ class JobScraper:
 
         return all_jobs
 
+    def _handle_pre_visit(self, config):
+        """Visits a URL to set cookies and optionally extracts CSRF token."""
+        url = config.get("url")
+        if url:
+            try:
+                self.session.get(url)
+            except Exception as e:
+                logger.error(f"Pre-visit failed for {url}: {e}")
+
+        csrf = config.get("csrf")
+        if csrf:
+            cookie_name = csrf.get("cookie")
+            header_name = csrf.get("header")
+            if cookie_name and header_name:
+                cookie_val = self.session.cookies.get(cookie_name)
+                if cookie_val:
+                    if csrf.get("unescape"):
+                        cookie_val = urllib.parse.unquote(cookie_val)
+
+                    if csrf.get("split"):
+                        cookie_val = cookie_val.split(csrf["split"])[0]
+
+                    self.session.headers.update({header_name: cookie_val})
+
     def _apply_mapping_logic(self, val, m):
         """Centralized logic for split, regex, prefix, and suffix."""
         if not isinstance(m, dict):
@@ -186,6 +210,11 @@ class JobScraper:
         careers_url = studio.get("careers_url")
         scraping = studio.get("scraping", {})
 
+        # Pre-visit logic
+        pre_visit = scraping.get("pre_visit")
+        if pre_visit:
+            self._handle_pre_visit(pre_visit)
+
         # Request
         method = scraping.get("method", "GET").upper()
         params = scraping.get("params", {})
@@ -199,7 +228,7 @@ class JobScraper:
                 data=form_data if form_data else None,
                 json=payload if not form_data else None,
                 params=params,
-                headers=headers,
+                headers={**self.session.headers, **headers},
             )
         else:
             response = self.session.get(careers_url, params=params, headers=headers)

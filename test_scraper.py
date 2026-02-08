@@ -46,13 +46,13 @@ if __name__ == "__main__":
     #          fortiche, mikros, steamroller, giant, netflix, wildchild, flyingbark,
     #          rodeofx, framestore, skydance, illusorium, littlezoo...
 
-    target_studio = "nexusstudios"
+    target_studio = "craftyapes"
 
-    if len(sys.argv) > 1:
-        target_studio = sys.argv[1]
+    # if len(sys.argv) > 1:
+    #     target_studio = sys.argv[1]
 
     test_studio(target_studio)
 
     # studios = load_studios()
     # for studio in studios:
-    #     print(studio["name"])
+    #     print(studio["name"], end=", ")

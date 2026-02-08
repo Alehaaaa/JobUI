@@ -1158,6 +1158,80 @@
         }
     },
     {
+        "id": "zoicstudios",
+        "name": "Zoic Studios",
+        "logo_url": "https://images.squarespace-cdn.com/content/v1/65f9d8f7a01fc94298a99a6e/94a55c4a-729b-40ce-8be4-7d34999f5763/ZOIC._transparent_logo_v2.png?format=1500w",
+        "careers_url": "https://zoicstudios.applytojob.com/apply/",
+        "scraping": {
+            "strategy": "html",
+            "container": "ul.list-group li.list-group-item",
+            "map": {
+                "title": "h4.list-group-item-heading a",
+                "link": "h4.list-group-item-heading a",
+                "location": {
+                    "selector": "ul.list-inline li",
+                    "index": 0
+                }
+            }
+        }
+    },
+    {
+        "id": "mrxfx",
+        "name": "Mr. X",
+        "logo_url": "https://mrxfx.com/wp-content/uploads/2025/06/mrx_logo_v002_RGB_FooterV3-768x366.png",
+        "careers_url": "https://mrxfx.com/careers/",
+        "scraping": {
+            "strategy": "html",
+            "container": ".e-loop-item",
+            "map": {
+                "title": "h2.elementor-heading-title a",
+                "link": "h2.elementor-heading-title a",
+                "location": {
+                    "default": "Toronto"
+                }
+            }
+        }
+    },
+    {
+        "id": "craftyapes",
+        "name": "Crafty Apes",
+        "logo_url": "https://www.bspny.com/hs-fs/hubfs/bsplogoscroller_craftyapes.png?width=400&height=210&name=bsplogoscroller_craftyapes.png",
+        "careers_url": "https://jobs.dayforcehcm.com/api/geo/craftyapes/jobposting/search",
+        "website": "https://jobs.dayforcehcm.com/en-US/craftyapes/CANDIDATEPORTAL",
+        "scraping": {
+            "strategy": "json",
+            "method": "POST",
+            "headers": {
+                "Content-Type": "application/json"
+            },
+            "pre_visit": {
+                "url": "https://jobs.dayforcehcm.com/en-US/craftyapes/CANDIDATEPORTAL",
+                "csrf": {
+                    "cookie": "__Host-next-auth.csrf-token",
+                    "unescape": true,
+                    "split": "|",
+                    "header": "X-CSRF-TOKEN"
+                }
+            },
+            "payload": {
+                "clientNamespace": "craftyapes",
+                "jobBoardCode": "CANDIDATEPORTAL",
+                "cultureCode": "en-US",
+                "distanceUnit": 0,
+                "paginationStart": 0
+            },
+            "path": "jobPostings[*]",
+            "map": {
+                "title": "jobTitle",
+                "link": {
+                    "path": "jobPostingId",
+                    "prefix": "https://jobs.dayforcehcm.com/en-US/craftyapes/CANDIDATEPORTAL/jobs/"
+                },
+                "location": "postingLocations[0].formattedAddress"
+            }
+        }
+    },
+    {
         "id": "kojimaproductions",
         "name": "Kojima Productions",
         "logo_url": "https://www.kojimaproductions.jp/themes/kojima_productions/images/lg.kjp.white.png",
@@ -1196,6 +1270,24 @@
                     "selector": "a",
                     "attr": "href",
                     "prefix": "https://www.kojimaproductions.jp"
+                }
+            }
+        }
+    },
+    {
+        "id": "industrialbrothers",
+        "name": "Industrial Brothers",
+        "logo_url": "https://www.industrialbrothers.com/wp-content/themes/industrialbrothers/img/industrial-brothers-logo.svg",
+        "careers_url": "https://industrialbrothers.applytojobs.ca/",
+        "scraping": {
+            "strategy": "html",
+            "container": "article.job-posting",
+            "map": {
+                "title": "a.text-lg",
+                "link": "a",
+                "location": {
+                    "selector": "div.text-xs",
+                    "regex": "(?i)(?:hybrid\\s+)?(.*?)(?=\\s*\\.|\\s*$)"
                 }
             }
         }

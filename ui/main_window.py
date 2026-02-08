@@ -544,6 +544,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         menubar = self.menuBar()
 
         self.studios_menu = ScrollableMenu("Studios", self)
+        self.studios_menu.setTearOffEnabled(True)
         self.studios_menu.aboutToShow.connect(self.populate_studios_menu)
         menubar.addMenu(self.studios_menu)
 
