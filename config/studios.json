@@ -40,22 +40,6 @@
         }
     },
     {
-        "id": "blur",
-        "name": "Blur Studio",
-        "logo_url": "https://upload.wikimedia.org/wikipedia/en/thumb/d/d7/Blur_Studio_logo.svg/1920px-Blur_Studio_logo.svg.png",
-        "careers_url": "https://job-boards.greenhouse.io/blurstudio",
-        "website": "https://blur.com/careers",
-        "scraping": {
-            "strategy": "html",
-            "container": "tr.job-post",
-            "map": {
-                "title": "p",
-                "link": "a",
-                "location": "p.body__secondary"
-            }
-        }
-    },
-    {
         "id": "pixar",
         "name": "Pixar",
         "logo_url": "https://cdn.prod.website-files.com/64ea57571d50b02423c4505d/64f9e15b90d4d9e5678aeb32_pixar%20logo%20png.png",
@@ -128,6 +112,37 @@
         "name": "Sony Pictures Imageworks",
         "logo_url": "https://www.imageworks.com/themes/custom/topplus/logo.svg",
         "careers_url": "https://job-boards.greenhouse.io/sonypicturesimageworks",
+        "scraping": {
+            "strategy": "html",
+            "container": "tr.job-post",
+            "map": {
+                "title": "p",
+                "link": "a",
+                "location": "p.body__secondary"
+            }
+        }
+    },
+    {
+        "id": "blur",
+        "name": "Blur Studio",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/en/thumb/d/d7/Blur_Studio_logo.svg/1920px-Blur_Studio_logo.svg.png",
+        "careers_url": "https://job-boards.greenhouse.io/blurstudio",
+        "website": "https://blur.com/careers",
+        "scraping": {
+            "strategy": "html",
+            "container": "tr.job-post",
+            "map": {
+                "title": "p",
+                "link": "a",
+                "location": "p.body__secondary"
+            }
+        }
+    },
+    {
+        "id": "guerrillagames",
+        "name": "Guerrilla Games",
+        "logo_url": "https://s4-recruiting.cdn.greenhouse.io/external_greenhouse_job_boards/logos/401/033/200/original/Logo_Greenhouse.png",
+        "careers_url": "https://job-boards.greenhouse.io/guerrilla-games",
         "scraping": {
             "strategy": "html",
             "container": "tr.job-post",

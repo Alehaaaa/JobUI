@@ -99,7 +99,9 @@ class JobWidget(QtWidgets.QFrame):
             self.extra_link_btn.setToolTip("Open Job Info Link")
             self.extra_link_btn.setFixedSize(20, 20)
             self.extra_link_btn.setCursor(QtCore.Qt.PointingHandCursor)
-            self.extra_link_btn.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(extra_link)))
+            self.extra_link_btn.clicked.connect(
+                lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(extra_link))
+            )
             bottom_layout.addWidget(self.extra_link_btn)
 
         self.clicked.connect(self.open_link)
@@ -375,7 +377,9 @@ class StudioWidget(QtWidgets.QFrame):
         if self.no_match_label:
             if match_count == 0 and len(self.job_widgets) > 0:
                 # Use pattern string for label if available
-                display_text = pattern_or_regex.pattern if not isinstance(pattern_or_regex, str) else pattern_or_regex
+                display_text = (
+                    pattern_or_regex.pattern if not isinstance(pattern_or_regex, str) else pattern_or_regex
+                )
                 self.no_match_label.setText(f'No jobs matching "{display_text}"')
                 self.no_match_label.show()
             else:
@@ -625,12 +629,12 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
             # Add separators and global actions outside the scroll area using QtWidgets.QMenu directly
             QtWidgets.QMenu.addSeparator(self.studios_menu)
 
-            enable_all = QtWidgets.QAction("Enable All", self.studios_menu)
+            enable_all = QAction("Enable All", self.studios_menu)
             enable_all.triggered.connect(self.config_manager.enable_all_studios)
             enable_all.setIcon(resources.get_icon("dot.svg"))
             QtWidgets.QMenu.addAction(self.studios_menu, enable_all)
 
-            disable_all = QtWidgets.QAction("Disable All", self.studios_menu)
+            disable_all = QAction("Disable All", self.studios_menu)
             disable_all.triggered.connect(self.config_manager.disable_all_studios)
             disable_all.setIcon(resources.get_icon("dot.svg"))
             QtWidgets.QMenu.addAction(self.studios_menu, disable_all)
@@ -941,7 +945,9 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
 
                 logger.info("Setting workspace control position: {}".format(position))
                 logger.info("Setting workspace control size: {}".format(size))
-                qt_control.setGeometry(QtCore.QRect(int(position[0]), int(position[1]), int(size[0]), int(size[1])))
+                qt_control.setGeometry(
+                    QtCore.QRect(int(position[0]), int(position[1]), int(size[0]), int(size[1]))
+                )
         except Exception as e:
             logger.error("Error setting workspace control geometry: {}".format(e))
 
