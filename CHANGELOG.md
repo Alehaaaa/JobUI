@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.9] - 2026-02-12
+
+### Added
+- **New Studio Integrations**:
+  - **Gaming & Animation**: Added support for **Bohemia Interactive, CD Projekt RED, Techland, Warhorse Studios, Digic Pictures, UPP, and PFX**.
+- **Scraper Enhancements**:
+  - **Dynamic Link Parsing**: Implemented `find_next_sibling` logic to handle studios with detached application links (e.g., **Little Zoo Studio**).
+  - **Enhanced Locations**: Added robust default location handling for studios with fixed offices (**Digic Pictures, Techland, Illusorium**).
+
+### Fixed
+- **Scraper Stability**:
+  - **DNEG**: Migrated to a more stable JSON-based API for job extraction.
+  - **Link Extraction**: Improved link resolution for TalentSoft and SmartRecruiters portals.
+- **UI & Branding**:
+  - **Refined Styles**: Minimalist border updates and improved typography contrast for job listings.
+  - **Feedback**: Added contextual "No jobs found" messages that include the active search query.
+  - **Logos**: Fixed 403/404 errors for several studio icons and updated logos for **Eyeline** and **WildBrain**.
+
 ## [0.1.8] - 2026-02-07
 
 ### Added

@@ -556,7 +556,8 @@
                 },
                 "location": {
                     "selector": ".cities, .state",
-                    "index": "0:"
+                    "index": "0:",
+                    "default": "US"
                 }
             }
         }
@@ -1303,6 +1304,124 @@
                 "location": {
                     "selector": "div.text-xs",
                     "regex": "(?i)(?:hybrid\\s+)?(.*?)(?=\\s*\\.|\\s*$)"
+                }
+            }
+        }
+    },
+    {
+        "id": "upp",
+        "name": "UPP",
+        "logo_url": "https://www.upp.cz/favicon.png",
+        "careers_url": "https://www.upp.cz/careers",
+        "scraping": {
+            "strategy": "html",
+            "container": "div.col-12.col-md-6.mb-4",
+            "map": {
+                "title": "a",
+                "link": "a",
+                "location": {
+                    "find_previous": ".text-uppercase"
+                }
+            }
+        }
+    },
+    {
+        "id": "bohemia",
+        "name": "Bohemia Interactive",
+        "logo_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Bohemia_Interactive.svg/960px-Bohemia_Interactive.svg.png",
+        "careers_url": "https://careers.bohemia.net/en/open-positions",
+        "scraping": {
+            "strategy": "html",
+            "container": "a[href*='/open-positions/']",
+            "map": {
+                "title": "h3",
+                "link": "",
+                "location": "span.careers-label-text-sm"
+            }
+        }
+    },
+    {
+        "id": "pfx",
+        "name": "PFX",
+        "logo_url": "https://images.teamtailor-cdn.com/images/s3/teamtailor-production/logotype-v3/image_uploads/f0856abc-ada0-4aae-9a5a-1e94317f1ce4/original.png",
+        "careers_url": "https://pfx.teamtailor.com/jobs",
+        "scraping": {
+            "strategy": "html",
+            "container": "#jobs_list_container li",
+            "map": {
+                "title": "a",
+                "link": "a",
+                "location": {
+                    "selector": "div.text-md span",
+                    "index": -1
+                }
+            }
+        }
+    },
+    {
+        "id": "warhorse",
+        "name": "Warhorse Studios",
+        "logo_url": "https://powerups.es/wp-content/uploads/2020/06/6efiytbgbp_WarhorseStudios_Light_Alpha-1.png",
+        "careers_url": "https://warhorsestudios.breezy.hr/",
+        "scraping": {
+            "strategy": "html",
+            "container": "li.position",
+            "map": {
+                "title": "h2",
+                "link": ".position-details a",
+                "location": "li.location span"
+            }
+        }
+    },
+    {
+        "id": "digic",
+        "name": "Digic Pictures",
+        "logo_url": "https://digic-strapi-files.s3.eu-central-1.amazonaws.com/pictures_e833fab04f.svg",
+        "careers_url": "https://career.digicpictures.com/jobs",
+        "scraping": {
+            "strategy": "html",
+            "container": "div.jobs_job_result",
+            "map": {
+                "title": "h2",
+                "link": "a",
+                "location": {
+                    "default": "Budapest, Hungary"
+                }
+            }
+        }
+    },
+    {
+        "id": "cdprojektred",
+        "name": "CD Projekt RED",
+        "logo_url": "https://www.cdprojektred.com/img/logo-cdpr.png",
+        "careers_url": "https://api.smartrecruiters.com/v1/companies/CDPROJEKTRED/postings?language=en",
+        "website": "https://www.cdprojektred.com/en/jobs",
+        "scraping": {
+            "strategy": "json",
+            "path": "content[*]",
+            "map": {
+                "title": "name",
+                "link": {
+                    "path": "id",
+                    "prefix": "https://www.smartrecruiters.com/CDPROJEKTRED/"
+                },
+                "location": "location.fullLocation"
+            }
+        }
+    },
+    {
+        "id": "techland",
+        "name": "Techland",
+        "logo_url": "https://techland.net/img/logo-techland.png",
+        "careers_url": "https://techland.net/job-offers",
+        "scraping": {
+            "strategy": "html",
+            "container": "a[href*='job-offers/']",
+            "map": {
+                "title": "",
+                "link": "",
+                "location": {
+                    "default": "Wroclaw, Poland"
                 }
             }
         }

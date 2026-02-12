@@ -298,7 +298,11 @@ class JobScraper:
             regex = json_regex
         elif json_var:
             # Supports: var x = [...], const x = [...], let x = [...], window.x = [...]
-            regex = r"(?:const|var|let|window\.)\s*" + re.escape(json_var) + r"\s*=\s*(\[.*?\])\s*(?:;|\n|<\/script>)"
+            regex = (
+                r"(?:const|var|let|window\.)\s*"
+                + re.escape(json_var)
+                + r"\s*=\s*(\[.*?\])\s*(?:;|\n|<\/script>)"
+            )
         else:
             regex = r"(?:const|var|let|window\.)\s*jobsData\s*=\s*(\[.*?\])\s*(?:;|\n|<\/script>)"
 
@@ -447,7 +451,9 @@ class JobScraper:
                 else:
                     selector = m.get("selector") if isinstance(m, dict) else m
                     attr = m.get("attr", def_attr) if isinstance(m, dict) else def_attr
-                    val = extract_html(item, selector, attr=attr, index=m.get("index") if isinstance(m, dict) else None)
+                    val = extract_html(
+                        item, selector, attr=attr, index=m.get("index") if isinstance(m, dict) else None
+                    )
                 return self._apply_mapping_logic(str(val or ""), m)
 
             # Strategy-specific fallback (Little Zoo)
@@ -509,7 +515,11 @@ class JobScraper:
                     sel = m.get("selector") or m.get("path") or def_tag
                     node = item.find(sel) or (item.find("guid") if def_tag == "link" else None)
                     if node:
-                        val = node.get_text(strip=True) if m.get("attr", "text") == "text" else node.get(m.get("attr"))
+                        val = (
+                            node.get_text(strip=True)
+                            if m.get("attr", "text") == "text"
+                            else node.get(m.get("attr"))
+                        )
                     else:
                         val = extract_html(item, sel, attr=m.get("attr", "text"), default="")
                     return self._apply_mapping_logic(str(val or ""), m)

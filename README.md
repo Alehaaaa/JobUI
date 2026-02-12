@@ -9,7 +9,7 @@ The core application is built using **Python** and **PySide6** and is primarily 
 The main codebase is located in the root directory.
 
 ### Features
-- **Studio Scrapers**: Configurable scrapers for **60 major and boutique VFX/Animation studios** including Disney, ILM, Pixar, DreamWorks, DNEG, Framestore, Wētā FX, WildBrain, Ubisoft, Riot Games, Kojima Productions, Squeeze Studio, and many more.
+- **Studio Scrapers**: Configurable scrapers for **70+ major and boutique VFX, Animation, and Gaming studios** including Disney, ILM, Pixar, DreamWorks, DNEG, Framestore, Wētā FX, WildBrain, Ubisoft, Riot Games, Kojima Productions, CD Projekt RED, and many more.
 - **Multi-Strategy Scraping**: Support for JSON APIs, HTML parsing, RSS feeds, and embedded JSON extraction with intelligent fallbacks.
 - **Smart Parsing**: Automatic location removal from titles, punctuation cleanup, duplicate detection, and default value handling.
 - **Fast UI**: Instant-load placeholders, zero-latency responsive grid, and optimized logo caching.
