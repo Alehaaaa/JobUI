@@ -101,7 +101,10 @@
             "strategy": "html",
             "container": "tr.job-post",
             "map": {
-                "title": "p",
+                "title": {
+                    "selector": "p",
+                    "exclude": ".tag-container"
+                },
                 "link": "a",
                 "location": "p.body__secondary"
             }
@@ -116,7 +119,10 @@
             "strategy": "html",
             "container": "tr.job-post",
             "map": {
-                "title": "p",
+                "title": {
+                    "selector": "p",
+                    "exclude": ".tag-container"
+                },
                 "link": "a",
                 "location": "p.body__secondary"
             }
@@ -132,7 +138,10 @@
             "strategy": "html",
             "container": "tr.job-post",
             "map": {
-                "title": "p",
+                "title": {
+                    "selector": "p",
+                    "exclude": ".tag-container"
+                },
                 "link": "a",
                 "location": "p.body__secondary"
             }
@@ -147,7 +156,10 @@
             "strategy": "html",
             "container": "tr.job-post",
             "map": {
-                "title": "p",
+                "title": {
+                    "selector": "p",
+                    "exclude": ".tag-container"
+                },
                 "link": "a",
                 "location": "p.body__secondary"
             }

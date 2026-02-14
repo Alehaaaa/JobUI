@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-02-14
+
+### Added
+- **Job History Architecture (SQLite)**: Migrated job persistence from JSON to SQLite for improved performance and scalability.
+- **Enhanced Visual Feedback**:
+  - **Color-Coded Age Indicators**: Jobs now transition through a "heat map" of colors: **Green** (0-2d), **Orange** (2-4d), and **Red** (4-5d) before returning to the default Grey (5+ days).
+  - **Dynamic Saturation**: Brand new jobs appear more vibrant, with saturation fading over the first 24 hours to focus user attention on the latest discoveries.
+  - **Detailed Tooltips**: Hovering over the job age displays the exact discovery date and time.
+- **Improved Sorting**: Jobs are now strictly ordered by discovery "newness" (youngest first).
+- **Scraper Flexibility**: Introduced the `exclude` mapping parameter to selectively remove unwanted elements (like "New" badges from source sites) before extracting job titles.
+
+### Changed
+- **Code Organization**: 
+  - Refactored `JobWidget` into a modular structure (Processing, UI Setup, Layout).
+  - Extracted `LogoWorker` to a dedicated module.
+- **Performance**: 
+  - Enabled SQLite **WAL mode** for optimized concurrent access.
+  - Constant time complexity for stale job cleanup using timestamp-based deletion.
+
+### Fixed
+- **Greenhouse Scrapers**: Cleaned up job titles for all Greenhouse-based studios by excluding redundant "New" tags from the source HTML.
+- **System Stability**: Improved error handling and signal safety in `ConfigManager`.
+
+
 ## [0.1.9] - 2026-02-12
 
 ### Added

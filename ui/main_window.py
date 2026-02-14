@@ -51,101 +51,98 @@ class JobWidget(QtWidgets.QFrame):
     def __init__(self, job_data, parent=None):
         super(JobWidget, self).__init__(parent)
         self.job_data = job_data
+        
+        # 1. Process data (logic)
+        self._process_data()
+        
+        # 2. Initialize widgets (texts/styles)
+        self._init_ui()
+        
+        # 3. Assemble layouts
+        self._init_layout()
 
-        # Min properties to wrap content snugly
-        self.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
-
-        # Native borders
-        self.setFrameStyle(QtWidgets.QFrame.Box | QtWidgets.QFrame.Plain)
-        self.setStyleSheet(JOB_WIDGET_STYLE)
-
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(2)
-
-        # Title
-        self.title_label = QtWidgets.QLabel(job_data.get("title", "Unknown"))
-        self.title_label.setWordWrap(True)
-        self.title_label.setStyleSheet(TITLE_STYLE)
-        layout.addWidget(self.title_label)
-
-        # Location (Cleaned)
-        raw_loc = job_data.get("location", "")
+    def _process_data(self):
+        """Processes raw job data into usable strings and state."""
+        # Location logic
+        raw_loc = self.job_data.get("location", "")
         if raw_loc and "," in raw_loc:
-            clean_loc = raw_loc.split(",")[0].strip()
+            self.clean_loc = raw_loc.split(",")[0].strip()
         elif raw_loc:
-            clean_loc = raw_loc.strip()
+            self.clean_loc = raw_loc.strip()
         else:
-            clean_loc = ""
+            self.clean_loc = ""
 
-        self.location_label = QtWidgets.QLabel(clean_loc)
-        self.location_label.setWordWrap(True)
-        self.location_label.setStyleSheet(LOCATION_STYLE)
-
-        # Bottom row: Location (left) + Extra Buttons (right)
-        bottom_layout = QtWidgets.QHBoxLayout()
-        bottom_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Location takes all space possible (stretch=1)
-        bottom_layout.addWidget(self.location_label, 1)
-        # If location is hidden, we still need a stretch to push buttons to the right
-        if not clean_loc:
-            bottom_layout.addStretch(1)
-
-        # Timestamp & New Job Highlighting
-        first_seen = job_data.get("first_seen")
-        is_new = False
-        time_text = ""
-
+        # Timestamp logic
+        self.first_seen_dt = None
+        self.time_text = ""
+        self.is_new = False
+        self.age_seconds = 9999999  # Default to very old
+        
+        first_seen = self.job_data.get("first_seen")
         if first_seen:
             try:
-                # Handle float timestamp (if number) or fallback to str parsing
-                dt = None
                 if isinstance(first_seen, (int, float)):
-                    dt = datetime.fromtimestamp(first_seen)
+                    self.first_seen_dt = datetime.fromtimestamp(first_seen)
                 elif isinstance(first_seen, str):
                     try:
-                        # Fallback for old ISO format or stringified float
                         try:
-                            dt = datetime.fromtimestamp(float(first_seen))
+                            self.first_seen_dt = datetime.fromtimestamp(float(first_seen))
                         except ValueError:
-                            dt = datetime.fromisoformat(first_seen)
+                            self.first_seen_dt = datetime.fromisoformat(first_seen)
                     except ValueError:
                         pass
                 
-                if dt:
-                    now = datetime.now()
-                    delta = now - dt
-                    days = delta.days
+                if self.first_seen_dt:
+                    delta = datetime.now() - self.first_seen_dt
+                    self.age_seconds = int(delta.total_seconds())
+                    if self.age_seconds < 0: self.age_seconds = 0
 
-                    if days <= 4:
-                        is_new = True
-
-                    if days == 0:
-                        time_text = "New"
-                    elif days == 1:
-                        time_text = "1d ago"
+                    if self.age_seconds < 3600:
+                        self.time_text = "New"
+                    elif self.age_seconds < 86400:
+                        self.time_text = f"{self.age_seconds // 3600}h ago"
+                    elif self.age_seconds < 604800:
+                        self.time_text = f"{self.age_seconds // 86400}d ago"
                     else:
-                        time_text = f"{days}d ago"
+                        self.time_text = f"{self.age_seconds // 604800}w ago"
 
-            except Exception as e:
-                # logger.error(f"Timestamp error: {e}")
+                    if self.age_seconds <= 432000:  # 5 days for highlighting/fading
+                        self.is_new = True
+            except Exception:
                 pass
 
-        # Add time label
-        if time_text:
-            self.time_label = QtWidgets.QLabel(time_text)
+    def _init_ui(self):
+        """Creates and styles widgets."""
+        self.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
+        self.setFrameStyle(QtWidgets.QFrame.Box | QtWidgets.QFrame.Plain)
+        self.setCursor(QtCore.Qt.PointingHandCursor)
+        self.setToolTip("Open Job Link")
+        
+        # Title
+        self.title_label = QtWidgets.QLabel(self.job_data.get("title", "Unknown"))
+        self.title_label.setWordWrap(True)
+        self.title_label.setStyleSheet(TITLE_STYLE)
+
+        # Location
+        self.location_label = QtWidgets.QLabel(self.clean_loc)
+        self.location_label.setWordWrap(True)
+        self.location_label.setStyleSheet(LOCATION_STYLE)
+        if not self.clean_loc:
+            self.location_label.hide()
+
+        # Time Label
+        self.time_label = None
+        if self.time_text:
+            self.time_label = QtWidgets.QLabel(self.time_text)
             self.time_label.setStyleSheet("color: #888; font-size: 10px; margin-right: 4px;")
             self.time_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
-            
-            if dt:
-                tooltip_date = dt.strftime("%d/%m/%Y at %H:%M")
+            if self.first_seen_dt:
+                tooltip_date = self.first_seen_dt.strftime("%d/%m/%Y at %H:%M")
                 self.time_label.setToolTip(f"Job added {tooltip_date}")
-                
-            bottom_layout.addWidget(self.time_label)
 
-        # Extra Link Button (e.g. PDF)
-        extra_link = job_data.get("extra_link")
+        # Extra Link Button
+        self.extra_link_btn = None
+        extra_link = self.job_data.get("extra_link")
         if extra_link:
              self.extra_link_btn = QtWidgets.QPushButton()
              self.extra_link_btn.setIcon(resources.get_icon("info.svg"))
@@ -155,35 +152,97 @@ class JobWidget(QtWidgets.QFrame):
              self.extra_link_btn.clicked.connect(
                  lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(extra_link))
              )
-             bottom_layout.addWidget(self.extra_link_btn)
 
-        self.clicked.connect(self.open_link)
-        self.setCursor(QtCore.Qt.PointingHandCursor)
-        self.setToolTip("Open Job Link")
-
-        layout.addLayout(bottom_layout)
-
-        if not clean_loc:
-             self.location_label.hide()
+        # Dynamic Styling
+        self.setStyleSheet(JOB_WIDGET_STYLE)
         
-        # Apply Highlight Style
-        if is_new:
-            # We append to the existing style to keep structure
-            # Use a green border and slight green tint
-            highlight_style = """
-                JobWidget {
-                    border: 1px solid #4CAF50;
-                    background-color: rgba(76, 175, 80, 0.1);
-                }
-                JobWidget:hover {
-                    background-color: rgba(76, 175, 80, 0.15);
-                    border-color: #66BB6A;
-                }
-                QLabel {
-                    color: #E8F5E9; /* Slightly brighter text */
-                }
+        # Dynamic Highlighting: Green (0d) -> Orange (2d) -> Red (4d) -> Grey (5d)
+        day_secs = 86400
+        if self.is_new and self.age_seconds <= 5 * day_secs:
+            # Hue Interpolation Targets (RGB)
+            target_green = (76, 175, 80)
+            target_orange = (255, 152, 0)
+            target_red = (244, 67, 54)
+            target_grey = (85, 85, 85)
+
+            if self.age_seconds <= 2 * day_secs:
+                # Stage 1: Green to Orange
+                ratio = self.age_seconds / (2 * day_secs)
+                c1, c2 = target_green, target_orange
+            elif self.age_seconds <= 4 * day_secs:
+                # Stage 2: Orange to Red
+                ratio = (self.age_seconds - 2 * day_secs) / (2 * day_secs)
+                c1, c2 = target_orange, target_red
+            else:
+                # Stage 3: Red to Grey
+                ratio = min(1.0, (self.age_seconds - 4 * day_secs) / (1 * day_secs))
+                c1, c2 = target_red, target_grey
+            
+            # Base Interpolated Color
+            br = c1[0] + (c2[0] - c1[0]) * ratio
+            bg = c1[1] + (c2[1] - c1[1]) * ratio
+            bb = c1[2] + (c2[2] - c1[2]) * ratio
+
+            # SATURATION DROP-OFF
+            # Only brand new jobs (0h) are at 100% saturation of their target.
+            # We fade saturation down to 40% over the first day.
+            sat_ratio = min(1.0, self.age_seconds / day_secs)
+            vibrancy = 1.0 - (0.6 * sat_ratio) # 1.0 -> 0.4
+            
+            # Blend base color with neutral grey (85, 85, 85) based on vibrancy
+            r = int(br * vibrancy + 85 * (1 - vibrancy))
+            g = int(bg * vibrancy + 85 * (1 - vibrancy))
+            b = int(bb * vibrancy + 85 * (1 - vibrancy))
+            
+            border_color = f"rgb({r}, {g}, {b})"
+            bg_alpha = 0.1 - (0.07 * (self.age_seconds / (5 * day_secs)))
+            
+            # Text color (Always slightly brighter/closer to white for readability)
+            tr = int(min(255, r + 40))
+            tg = int(min(255, g + 40))
+            tb = int(min(255, b + 40))
+            text_color = f"rgb({tr}, {tg}, {tb})"
+
+            highlight_style = f"""
+                JobWidget {{
+                    border: 1px solid {border_color};
+                    background-color: rgba({r}, {g}, {b}, {bg_alpha});
+                }}
+                JobWidget:hover {{
+                    background-color: rgba({r}, {g}, {b}, {bg_alpha + 0.05});
+                    border-color: {border_color};
+                }}
+                QLabel {{
+                    color: {text_color};
+                }}
             """
             self.setStyleSheet(JOB_WIDGET_STYLE + highlight_style)
+
+        self.clicked.connect(self.open_link)
+
+    def _init_layout(self):
+        """Assembles layouts."""
+        main_layout = QtWidgets.QVBoxLayout(self)
+        main_layout.setContentsMargins(6, 6, 6, 6)
+        main_layout.setSpacing(2)
+        
+        main_layout.addWidget(self.title_label)
+
+        bottom_layout = QtWidgets.QHBoxLayout()
+        bottom_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Add components to bottom row
+        bottom_layout.addWidget(self.location_label, 1)
+        if not self.clean_loc:
+            bottom_layout.addStretch(1)
+
+        if self.time_label:
+            bottom_layout.addWidget(self.time_label)
+
+        if self.extra_link_btn:
+            bottom_layout.addWidget(self.extra_link_btn)
+
+        main_layout.addLayout(bottom_layout)
 
     def mouseReleaseEvent(self, event):
         if event.button() == QtCore.Qt.LeftButton and self.rect().contains(event.pos()):

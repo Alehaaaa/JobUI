@@ -9,11 +9,12 @@ The core application is built using **Python** and **PySide6** and is primarily 
 The main codebase is located in the root directory.
 
 ### Features
-- **Studio Scrapers**: Configurable scrapers for **70+ major and boutique VFX, Animation, and Gaming studios** including Disney, ILM, Pixar, DreamWorks, DNEG, Framestore, Wētā FX, WildBrain, Ubisoft, Riot Games, Kojima Productions, CD Projekt RED, and many more.
-- **Multi-Strategy Scraping**: Support for JSON APIs, HTML parsing, RSS feeds, and embedded JSON extraction with intelligent fallbacks.
-- **Smart Parsing**: Automatic location removal from titles, punctuation cleanup, duplicate detection, and default value handling.
-- **Fast UI**: Instant-load placeholders, zero-latency responsive grid, and optimized logo caching.
-- **Job Management**: View, filter (including "Hide Empty" option), and track job listings across all studios.
+- **Studio Scrapers**: Configurable scrapers for **80+ major and boutique VFX, Animation, and Gaming studios** including Disney, ILM, Pixar, DreamWorks, DNEG, Framestore, Wētā FX, WildBrain, Ubisoft, Riot Games, Kojima Productions, CD Projekt RED, and many more.
+- **Dynamic Visual Hierarchy**: New jobs are visually emphasized with a color-coded "heat map" (**Green** -> **Orange** -> **Red**) that fades to grey over 5 days. Brand-new jobs (0-24h) feature high-saturation "vibrancy" to grab attention immediately.
+- **SQLite Persistence**: High-performance job tracking using a local SQLite database (migrated from JSON), ensuring accurate discovery timestamps and efficient data management.
+- **Detailed Discovery Tooltips**: Hover over job age (e.g., "New", "2h ago") to see the exact date and time the job was discovered.
+- **Multi-Strategy Scraping**: Support for JSON APIs, HTML parsing, RSS feeds, and embedded JSON extraction with intelligent fallbacks and advanced mapping parameters (regex, split, element exclusion).
+- **Fast UI**: Instant-load placeholders, strictly ordered discovery-first sorting, zero-latency responsive grid, and optimized logo caching.
 - **Maya Integration**: Fully dockable UI within Maya with custom styling and seamless workflow integration.
 
 ## Installation

@@ -1,4 +1,5 @@
 import re
+import copy
 from typing import Any
 
 # --- JSON Extraction Logic ---
@@ -166,9 +167,10 @@ def extract_json(data: Any, path: str, default: Any = None) -> Any:
 # --- HTML Extraction Logic ---
 
 
-def extract_html(soup_or_elem, selector, attr="text", default=None, index=None):
+def extract_html(soup_or_elem, selector, attr="text", default=None, index=None, exclude=None):
     """
     Extracts data from a BeautifulSoup object or Tag using CSS selectors.
+    'exclude' is an optional CSS selector to remove from the element before text extraction.
     """
     if not selector:
         elem = soup_or_elem
@@ -188,6 +190,11 @@ def extract_html(soup_or_elem, selector, attr="text", default=None, index=None):
 
                     results = []
                     for e in subset:
+                        if exclude:
+                            e = copy.copy(e)
+                            for side_effect_tag in e.select(exclude):
+                                side_effect_tag.decompose()
+
                         text = ""
                         if attr == "text":
                             text = e.get_text(separator=" ", strip=True)
@@ -216,6 +223,11 @@ def extract_html(soup_or_elem, selector, attr="text", default=None, index=None):
 
     if not elem:
         return default
+
+    if exclude:
+        elem = copy.copy(elem)
+        for side_effect_tag in elem.select(exclude):
+            side_effect_tag.decompose()
 
     if attr == "text":
         return elem.get_text(separator=" ", strip=True)

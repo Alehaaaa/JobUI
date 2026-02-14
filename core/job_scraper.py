@@ -452,7 +452,11 @@ class JobScraper:
                     selector = m.get("selector") if isinstance(m, dict) else m
                     attr = m.get("attr", def_attr) if isinstance(m, dict) else def_attr
                     val = extract_html(
-                        item, selector, attr=attr, index=m.get("index") if isinstance(m, dict) else None
+                        item,
+                        selector,
+                        attr=attr,
+                        index=m.get("index") if isinstance(m, dict) else None,
+                        exclude=m.get("exclude") if isinstance(m, dict) else None,
                     )
                 return self._apply_mapping_logic(str(val or ""), m)
 
