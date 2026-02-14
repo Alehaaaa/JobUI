@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] - 2026-02-14
+
+### Added
+- **Stale Job Threshold**: Jobs that disappear from a studio's website are now kept in the local database and UI for **7 days** before being removed.
+- **Website Error Handling**: Studio panels now display a prominent "Website Error" warning if a refresh fails, while continuing to show previously cached jobs.
+- **Full Data Persistence**: The SQLite backend now stores all job details (title, link, location, extra_link), allowing for full offline/stale job recovery.
+- **Warning Icons**: Added a new `warning.svg` icon to clearly indicate studios with connectivity or parsing errors.
+
+### Fixed
+- **Search Crash**: Resolved a `TypeError` in the job filtering logic caused by NULL values in the database being passed to the regex engine.
+
+### Changed
+- **Persistence Layer**: Optimized `ConfigManager` to load job data from the database on application startup for near-instant UI population.
+
+
 ## [0.2.0] - 2026-02-14
 
 ### Added

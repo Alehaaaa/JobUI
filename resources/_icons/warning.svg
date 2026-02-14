@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 64 64">
+  <defs>
+    <style>
+      .st0 {
+        fill: #bdbdbd;
+      }
+    </style>
+  </defs>
+  <path class="st0" d="M32,8.1L4.1,55.9h55.8L32,8.1z M35,48.5h-6v-6h6V48.5z M35,37.5h-6l-1-18h8L35,37.5z"/>
+</svg>

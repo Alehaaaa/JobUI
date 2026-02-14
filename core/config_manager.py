@@ -57,6 +57,7 @@ class ConfigManager(QtCore.QObject):
 
         self._config_hash = None
         self.load_config()
+        self._load_jobs_from_db()
         self.download_missing_logos()
 
     def _get_db_connection(self):
@@ -76,14 +77,69 @@ class ConfigManager(QtCore.QObject):
                     CREATE TABLE IF NOT EXISTS jobs (
                         job_hash TEXT PRIMARY KEY,
                         studio_id TEXT,
+                        title TEXT,
+                        link TEXT,
+                        location TEXT,
+                        extra_link TEXT,
                         first_seen REAL,
                         last_seen REAL
                     )
                 """)
+                
+                # Migration: Add new columns if they don't exist
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA table_info(jobs)")
+                columns = [row["name"] for row in cursor.fetchall()]
+                
+                needed_columns = {
+                    "title": "TEXT",
+                    "link": "TEXT",
+                    "location": "TEXT",
+                    "extra_link": "TEXT"
+                }
+                
+                for col, col_type in needed_columns.items():
+                    if col not in columns:
+                        logger.info(f"Migrating DB: Adding {col} column to 'jobs' table.")
+                        conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} {col_type}")
+                
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_studio_id ON jobs (studio_id)")
                 conn.commit()
         except sqlite3.Error as e:
             logger.error(f"Database initialization failed: {e}")
+
+    def _load_jobs_from_db(self):
+        """Populates the jobs cache from the database on startup."""
+        try:
+            with self._get_db_connection() as conn:
+                # Cleanup jobs older than 7 days on startup
+                day_7_threshold = datetime.now().timestamp() - (7 * 86400)
+                conn.execute("DELETE FROM jobs WHERE last_seen < ?", (day_7_threshold,))
+                conn.commit()
+
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT studio_id, title, link, location, extra_link, first_seen 
+                    FROM jobs 
+                    ORDER BY first_seen DESC
+                """)
+                rows = cursor.fetchall()
+                
+                for row in rows:
+                    sid = row["studio_id"]
+                    if sid not in self.jobs_cache:
+                        self.jobs_cache[sid] = []
+                    
+                    self.jobs_cache[sid].append({
+                        "title": row["title"] or "",
+                        "link": row["link"] or "",
+                        "location": row["location"] or "",
+                        "extra_link": row["extra_link"] or "",
+                        "first_seen": row["first_seen"]
+                    })
+                logger.info(f"Loaded {len(rows)} jobs from database cache.")
+        except sqlite3.Error as e:
+            logger.error(f"Failed to load jobs from DB: {e}")
 
     def _get_file_hash(self, path):
         """Calculates the MD5 hash of a file."""
@@ -346,11 +402,11 @@ class ConfigManager(QtCore.QObject):
 
     def _sync_studio_jobs(self, studio_id, jobs, existing_history):
         """
-        Updates the database with the current scrape results.
-        Returns the enriched job list with 'first_seen' timestamps.
+        Updates the database with the current scrape results and cleanup stale ones.
+        Returns the full list of active jobs (seen in last 7 days) for the studio.
         """
         now_ts = datetime.now().timestamp()
-        processed_jobs = []
+        day_7_threshold = now_ts - (7 * 86400)
         jobs_to_upsert = []
 
         for job in jobs:
@@ -363,42 +419,66 @@ class ConfigManager(QtCore.QObject):
             # Preserve original first_seen if exists, otherwise mark as new
             first_seen = existing_history.get(job_hash, now_ts)
 
-            # Prepare for DB batch update
-            jobs_to_upsert.append((job_hash, studio_id, first_seen, now_ts))
-
-            # Enrich UI object
-            job["first_seen"] = first_seen
-            processed_jobs.append(job)
-
-        if not jobs_to_upsert:
-            self._clear_studio_history(studio_id)
-            return []
+            # Prepare for DB batch update (Upsert signature)
+            jobs_to_upsert.append((
+                job_hash, 
+                studio_id, 
+                job.get("title", ""),
+                job.get("link", ""),
+                job.get("location", ""),
+                job.get("extra_link", ""),
+                first_seen, 
+                now_ts
+            ))
 
         try:
             with self._get_db_connection() as conn:
                 cursor = conn.cursor()
 
-                # Upsert: Insert new jobs or update last_seen for existing ones
-                cursor.executemany("""
-                    INSERT INTO jobs (job_hash, studio_id, first_seen, last_seen)
-                    VALUES (?, ?, ?, ?)
-                    ON CONFLICT(job_hash) DO UPDATE SET
-                        last_seen = excluded.last_seen
-                """, jobs_to_upsert)
+                # 1. Upsert: Insert new jobs or update last_seen/data for existing ones
+                if jobs_to_upsert:
+                    cursor.executemany("""
+                        INSERT INTO jobs (job_hash, studio_id, title, link, location, extra_link, first_seen, last_seen)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(job_hash) DO UPDATE SET
+                            title = excluded.title,
+                            link = excluded.link,
+                            location = excluded.location,
+                            extra_link = excluded.extra_link,
+                            last_seen = excluded.last_seen
+                    """, jobs_to_upsert)
 
-                # Cleanup: Remove jobs for this studio that were not seen in this batch
-                # Using timestamp comparison is efficient to identify stale records
+                # 2. Cleanup: Remove jobs older than 7 days
                 cursor.execute(
                     "DELETE FROM jobs WHERE studio_id = ? AND last_seen < ?",
-                    (studio_id, now_ts - 0.1)
+                    (studio_id, day_7_threshold)
                 )
                 
+                # 3. Fetch current state (all jobs seen in last 7 days)
+                cursor.execute("""
+                    SELECT title, link, location, extra_link, first_seen 
+                    FROM jobs 
+                    WHERE studio_id = ?
+                    ORDER BY first_seen DESC
+                """, (studio_id,))
+                
+                rows = cursor.fetchall()
                 conn.commit()
+                
+                processed_jobs = []
+                for row in rows:
+                    processed_jobs.append({
+                        "title": row["title"] or "",
+                        "link": row["link"] or "",
+                        "location": row["location"] or "",
+                        "extra_link": row["extra_link"] or "",
+                        "first_seen": row["first_seen"]
+                    })
+                return processed_jobs
                 
         except sqlite3.Error as e:
             logger.error(f"DB Sync failed for {studio_id}: {e}")
-
-        return processed_jobs
+            return []
 
     def _clear_studio_history(self, studio_id):
         try:

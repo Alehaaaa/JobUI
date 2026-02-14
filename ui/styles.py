@@ -73,5 +73,6 @@ GLOBAL_STYLE = """
 """
 
 NO_RESULTS_STYLE = "QLabel { color: #888; font-style: italic; }"
+ERROR_STYLE = "QLabel { color: #f44336; font-style: italic; font-weight: bold; }"
 LOCATION_STYLE = "QLabel { color: #888; } QLabel:disabled { color: #555; }"
 TITLE_STYLE = "QLabel { color: #eee; font-weight: bold; } QLabel:disabled { color: #666; }"

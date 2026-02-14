@@ -35,6 +35,7 @@ from .styles import (
     SCROLL_AREA_STYLE,
     LOCATION_STYLE,
     TITLE_STYLE,
+    ERROR_STYLE,
 )
 
 from ..core.logger import logger
@@ -263,6 +264,7 @@ class StudioWidget(QtWidgets.QFrame):
         self.config_manager = config_manager
         self.job_widgets = []
         self.no_match_label = None
+        self.is_errored = False
 
         self.setObjectName("studio_widget")
 
@@ -418,6 +420,7 @@ class StudioWidget(QtWidgets.QFrame):
 
     def on_jobs_updated(self, sid, jobs):
         if sid == self.studio_data.get("id"):
+            self.is_errored = False
             self.update_jobs()
             self.spinner.hide()
 
@@ -434,7 +437,7 @@ class StudioWidget(QtWidgets.QFrame):
     def on_jobs_failed(self, sid, error_message):
         if sid == self.studio_data.get("id"):
             self.spinner.hide()
-            self.refresh_btn.setIcon(resources.get_icon("error.svg"))
+            self.refresh_btn.setIcon(resources.get_icon("warning.svg"))
 
             # Clean up complex requests/urllib3 error messages
             # e.g. "Max retries exceeded... (Caused by NameResolutionError(...: Failed to resolve '...'))"
@@ -451,6 +454,8 @@ class StudioWidget(QtWidgets.QFrame):
                         cleaned_msg = parts[-1].strip().strip("')\" ")
 
             self.refresh_btn.setToolTip(f"Error: {cleaned_msg}")
+            self.is_errored = True
+            self.update_jobs()
             self.refresh_btn.show()
             self.scroll_area.setEnabled(True)
 
@@ -463,6 +468,12 @@ class StudioWidget(QtWidgets.QFrame):
 
         jobs = self.config_manager.get_studio_jobs(self.studio_data.get("id"))
         self.job_widgets = []
+
+        if self.is_errored:
+            err_lbl = QtWidgets.QLabel("⚠️ Website Error")
+            err_lbl.setAlignment(QtCore.Qt.AlignCenter)
+            err_lbl.setStyleSheet(ERROR_STYLE)
+            self.scroll_layout.insertWidget(0, err_lbl)
 
         if not jobs:
             lbl = QtWidgets.QLabel("No jobs found")
