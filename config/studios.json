@@ -1315,12 +1315,16 @@
         "careers_url": "https://www.upp.cz/careers",
         "scraping": {
             "strategy": "html",
-            "container": "div.col-12.col-md-6.mb-4",
+            "container": "section.c-career-positions div.c-list-items > a",
             "map": {
-                "title": "a",
-                "link": "a",
+                "title": "h3",
+                "link": {
+                    "attr": "href",
+                    "prefix": "https://www.upp.cz"
+                },
                 "location": {
-                    "find_previous": ".text-uppercase"
+                    "selector": ".c-tag--default",
+                    "index": 1
                 }
             }
         }
@@ -1336,7 +1340,10 @@
             "map": {
                 "title": "h3",
                 "link": "",
-                "location": "span.careers-label-text-sm"
+                "location": {
+                    "selector": "span.careers-label-text-sm",
+                    "index": -1
+                }
             }
         }
     },
@@ -1374,26 +1381,9 @@
         }
     },
     {
-        "id": "digic",
-        "name": "Digic Pictures",
-        "logo_url": "https://digic-strapi-files.s3.eu-central-1.amazonaws.com/pictures_e833fab04f.svg",
-        "careers_url": "https://career.digicpictures.com/jobs",
-        "scraping": {
-            "strategy": "html",
-            "container": "div.jobs_job_result",
-            "map": {
-                "title": "h2",
-                "link": "a",
-                "location": {
-                    "default": "Budapest, Hungary"
-                }
-            }
-        }
-    },
-    {
         "id": "cdprojektred",
         "name": "CD Projekt RED",
-        "logo_url": "https://www.cdprojektred.com/img/logo-cdpr.png",
+        "logo_url": "https://www.cdprojektred.com/build/images/img/logo-black-5c590770.svg",
         "careers_url": "https://api.smartrecruiters.com/v1/companies/CDPROJEKTRED/postings?language=en",
         "website": "https://www.cdprojektred.com/en/jobs",
         "scraping": {

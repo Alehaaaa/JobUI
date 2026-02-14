@@ -1,170 +1,16 @@
 import json
 import os
-import urllib.request
-import ssl
+import sqlite3
 import hashlib
 from .logger import logger
+from datetime import datetime
+
+from .logo_worker import LogoWorker
 
 try:
-    from PySide2 import QtCore, QtGui, QtSvg
+    from PySide2 import QtCore
 except ImportError:
-    from PySide6 import QtCore, QtGui, QtSvg
-
-
-class LogoWorker(QtCore.QThread):
-    logo_downloaded = QtCore.Signal(str)  # studio_id
-    finished = QtCore.Signal()
-
-    def render_svg(self, data):
-        """Renders SVG data (bytes) to a QImage."""
-        renderer = QtSvg.QSvgRenderer(data)
-        if not renderer.isValid():
-            return QtGui.QImage()
-
-        # Render to a QImage
-        size = renderer.defaultSize()
-        if size.isEmpty():
-            size = QtCore.QSize(200, 200)  # Fallback
-
-        image = QtGui.QImage(size, QtGui.QImage.Format_ARGB32)
-        image.fill(0)  # Transparent background
-
-        painter = QtGui.QPainter(image)
-        renderer.render(painter)
-        painter.end()
-
-        return image
-
-    def __init__(self, studios, logos_dir, parent=None):
-        super(LogoWorker, self).__init__(parent)
-        self.studios = studios
-        self.logos_dir = logos_dir
-        self._is_running = True
-
-    def process_logo(self, studio, ctx):
-        logo_url = studio.get("logo_url")
-        studio_id = studio.get("id")
-
-        if not logo_url or not studio_id:
-            return
-
-        filename = f"{studio_id}.png"
-        filepath = os.path.join(self.logos_dir, filename)
-
-        try:
-            # Download data
-            req = urllib.request.Request(
-                logo_url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.9",
-                    "Referer": "https://www.google.com/",
-                },
-            )
-            with urllib.request.urlopen(req, context=ctx, timeout=10) as response:
-                data = response.read()
-
-            if not self._is_running:
-                return
-
-            # Process Image
-            if logo_url.lower().endswith(".svg"):
-                img = self.render_svg(data)
-            else:
-                img = QtGui.QImage.fromData(data)
-
-            if img.isNull() or not self._is_running:
-                return
-
-            # 1. Make White (preserve alpha)
-            image = img.convertToFormat(QtGui.QImage.Format_ARGB32)
-            for y in range(image.height()):
-                for x in range(image.width()):
-                    pixel = image.pixelColor(x, y)
-                    if pixel.alpha() > 0:
-                        pixel.setRed(255)
-                        pixel.setGreen(255)
-                        pixel.setBlue(255)
-                        image.setPixelColor(x, y, pixel)
-
-            # 2. Trim Padding
-            if not self._is_running:
-                return
-            image = self.trim_image(image)
-
-            # Save
-            if self._is_running:
-                image.save(filepath, "PNG")
-                self.logo_downloaded.emit(studio_id)
-
-        except Exception as e:
-            if self._is_running:
-                logger.error(f"Failed to process logo for {studio_id}: {e}")
-
-    def run(self):
-        import concurrent.futures
-
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-
-        max_workers = min(len(self.studios), 10)
-        if max_workers < 1:
-            max_workers = 1
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(self.process_logo, s, ctx) for s in self.studios]
-            for future in concurrent.futures.as_completed(futures):
-                if not self._is_running:
-                    break
-                # results are handled via signals in process_logo
-
-        if self._is_running:
-            self.finished.emit()
-
-    def trim_image(self, image):
-        """
-        Trims transparent padding from the image.
-        """
-        width = image.width()
-        height = image.height()
-
-        min_x = width
-        min_y = height
-        max_x = 0
-        max_y = 0
-
-        found = False
-
-        # Check alpha channel for content boundaries
-        for y in range(height):
-            for x in range(width):
-                # get alpha
-                # QImage.pixel() returns #AARRGGBB unsigned int
-                pixel = image.pixel(x, y)
-                alpha = (pixel >> 24) & 0xFF
-
-                if alpha > 0:
-                    found = True
-                    if x < min_x:
-                        min_x = x
-                    if x > max_x:
-                        max_x = x
-                    if y < min_y:
-                        min_y = y
-                    if y > max_y:
-                        max_y = y
-
-        if not found:
-            return image
-
-        # Add 1 to max to include the pixel
-        rect = QtCore.QRect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1)
-        return image.copy(rect)
-
-    def stop(self):
-        self._is_running = False
+    from PySide6 import QtCore
 
 
 class ConfigManager(QtCore.QObject):
@@ -205,9 +51,39 @@ class ConfigManager(QtCore.QObject):
 
         self.scraper = JobScraper()
 
+        # Job History (SQLite)
+        self.db_path = os.path.join(self.root_dir, "config", "jobs.db")
+        self._init_db()
+
         self._config_hash = None
         self.load_config()
         self.download_missing_logos()
+
+    def _get_db_connection(self):
+        """Creates a new database connection."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _init_db(self):
+        """Initializes the database schema."""
+        try:
+            with self._get_db_connection() as conn:
+                # Enable WAL mode for better concurrency
+                conn.execute("PRAGMA journal_mode=WAL;")
+                
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS jobs (
+                        job_hash TEXT PRIMARY KEY,
+                        studio_id TEXT,
+                        first_seen REAL,
+                        last_seen REAL
+                    )
+                """)
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_studio_id ON jobs (studio_id)")
+                conn.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Database initialization failed: {e}")
 
     def _get_file_hash(self, path):
         """Calculates the MD5 hash of a file."""
@@ -440,8 +316,97 @@ class ConfigManager(QtCore.QObject):
         self.job_worker.start()
 
     def _on_jobs_ready(self, studio_id, jobs):
-        self.jobs_cache[studio_id] = jobs
-        self.jobs_updated.emit(studio_id, jobs)
+        try:
+            # 1. Fetch existing history to determine 'first_seen' status
+            existing_history = self._fetch_studio_history(studio_id)
+            
+            # 2. Sync results to DB (Upsert new, update existing, remove stale)
+            processed_jobs = self._sync_studio_jobs(studio_id, jobs, existing_history)
+            
+            # 3. Sort by newness and update UI
+            processed_jobs.sort(key=lambda x: float(x.get("first_seen", 0)), reverse=True)
+
+            self.jobs_cache[studio_id] = processed_jobs
+            self.jobs_updated.emit(studio_id, processed_jobs)
+
+        except Exception as e:
+            logger.error(f"Error processing jobs for {studio_id}: {e}")
+            self.jobs_failed.emit(studio_id, str(e))
+
+    def _fetch_studio_history(self, studio_id):
+        """Fetches existing persistence data (job_hash -> first_seen) for a studio."""
+        try:
+            with self._get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT job_hash, first_seen FROM jobs WHERE studio_id = ?", (studio_id,))
+                return {row["job_hash"]: row["first_seen"] for row in cursor.fetchall()}
+        except sqlite3.Error as e:
+            logger.error(f"Failed to fetch history for {studio_id}: {e}")
+            return {}
+
+    def _sync_studio_jobs(self, studio_id, jobs, existing_history):
+        """
+        Updates the database with the current scrape results.
+        Returns the enriched job list with 'first_seen' timestamps.
+        """
+        now_ts = datetime.now().timestamp()
+        processed_jobs = []
+        jobs_to_upsert = []
+
+        for job in jobs:
+            # Generate deterministic hash
+            j_link = job.get("link", "")
+            j_title = job.get("title", "")
+            raw_key = f"{j_link}|{j_title}"
+            job_hash = hashlib.md5(raw_key.encode("utf-8")).hexdigest()
+
+            # Preserve original first_seen if exists, otherwise mark as new
+            first_seen = existing_history.get(job_hash, now_ts)
+
+            # Prepare for DB batch update
+            jobs_to_upsert.append((job_hash, studio_id, first_seen, now_ts))
+
+            # Enrich UI object
+            job["first_seen"] = first_seen
+            processed_jobs.append(job)
+
+        if not jobs_to_upsert:
+            self._clear_studio_history(studio_id)
+            return []
+
+        try:
+            with self._get_db_connection() as conn:
+                cursor = conn.cursor()
+
+                # Upsert: Insert new jobs or update last_seen for existing ones
+                cursor.executemany("""
+                    INSERT INTO jobs (job_hash, studio_id, first_seen, last_seen)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(job_hash) DO UPDATE SET
+                        last_seen = excluded.last_seen
+                """, jobs_to_upsert)
+
+                # Cleanup: Remove jobs for this studio that were not seen in this batch
+                # Using timestamp comparison is efficient to identify stale records
+                cursor.execute(
+                    "DELETE FROM jobs WHERE studio_id = ? AND last_seen < ?",
+                    (studio_id, now_ts - 0.1)
+                )
+                
+                conn.commit()
+                
+        except sqlite3.Error as e:
+            logger.error(f"DB Sync failed for {studio_id}: {e}")
+
+        return processed_jobs
+
+    def _clear_studio_history(self, studio_id):
+        try:
+            with self._get_db_connection() as conn:
+                conn.execute("DELETE FROM jobs WHERE studio_id = ?", (studio_id,))
+                conn.commit()
+        except sqlite3.Error:
+            pass
 
     def cleanup(self):
         """Stops any running workers and prevents further updates."""

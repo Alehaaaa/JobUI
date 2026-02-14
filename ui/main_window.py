@@ -1,6 +1,7 @@
 import re
 import os
 import maya.cmds as cmds
+from datetime import datetime
 
 try:
     from base64 import decodebytes
@@ -91,18 +92,70 @@ class JobWidget(QtWidgets.QFrame):
         if not clean_loc:
             bottom_layout.addStretch(1)
 
+        # Timestamp & New Job Highlighting
+        first_seen = job_data.get("first_seen")
+        is_new = False
+        time_text = ""
+
+        if first_seen:
+            try:
+                # Handle float timestamp (if number) or fallback to str parsing
+                dt = None
+                if isinstance(first_seen, (int, float)):
+                    dt = datetime.fromtimestamp(first_seen)
+                elif isinstance(first_seen, str):
+                    try:
+                        # Fallback for old ISO format or stringified float
+                        try:
+                            dt = datetime.fromtimestamp(float(first_seen))
+                        except ValueError:
+                            dt = datetime.fromisoformat(first_seen)
+                    except ValueError:
+                        pass
+                
+                if dt:
+                    now = datetime.now()
+                    delta = now - dt
+                    days = delta.days
+
+                    if days <= 4:
+                        is_new = True
+
+                    if days == 0:
+                        time_text = "New"
+                    elif days == 1:
+                        time_text = "1d ago"
+                    else:
+                        time_text = f"{days}d ago"
+
+            except Exception as e:
+                # logger.error(f"Timestamp error: {e}")
+                pass
+
+        # Add time label
+        if time_text:
+            self.time_label = QtWidgets.QLabel(time_text)
+            self.time_label.setStyleSheet("color: #888; font-size: 10px; margin-right: 4px;")
+            self.time_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+            
+            if dt:
+                tooltip_date = dt.strftime("%d/%m/%Y at %H:%M")
+                self.time_label.setToolTip(f"Job added {tooltip_date}")
+                
+            bottom_layout.addWidget(self.time_label)
+
         # Extra Link Button (e.g. PDF)
         extra_link = job_data.get("extra_link")
         if extra_link:
-            self.extra_link_btn = QtWidgets.QPushButton()
-            self.extra_link_btn.setIcon(resources.get_icon("info.svg"))
-            self.extra_link_btn.setToolTip("Open Job Info Link")
-            self.extra_link_btn.setFixedSize(20, 20)
-            self.extra_link_btn.setCursor(QtCore.Qt.PointingHandCursor)
-            self.extra_link_btn.clicked.connect(
-                lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(extra_link))
-            )
-            bottom_layout.addWidget(self.extra_link_btn)
+             self.extra_link_btn = QtWidgets.QPushButton()
+             self.extra_link_btn.setIcon(resources.get_icon("info.svg"))
+             self.extra_link_btn.setToolTip("Open Job Info Link")
+             self.extra_link_btn.setFixedSize(20, 20)
+             self.extra_link_btn.setCursor(QtCore.Qt.PointingHandCursor)
+             self.extra_link_btn.clicked.connect(
+                 lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(extra_link))
+             )
+             bottom_layout.addWidget(self.extra_link_btn)
 
         self.clicked.connect(self.open_link)
         self.setCursor(QtCore.Qt.PointingHandCursor)
@@ -111,7 +164,26 @@ class JobWidget(QtWidgets.QFrame):
         layout.addLayout(bottom_layout)
 
         if not clean_loc:
-            self.location_label.hide()
+             self.location_label.hide()
+        
+        # Apply Highlight Style
+        if is_new:
+            # We append to the existing style to keep structure
+            # Use a green border and slight green tint
+            highlight_style = """
+                JobWidget {
+                    border: 1px solid #4CAF50;
+                    background-color: rgba(76, 175, 80, 0.1);
+                }
+                JobWidget:hover {
+                    background-color: rgba(76, 175, 80, 0.15);
+                    border-color: #66BB6A;
+                }
+                QLabel {
+                    color: #E8F5E9; /* Slightly brighter text */
+                }
+            """
+            self.setStyleSheet(JOB_WIDGET_STYLE + highlight_style)
 
     def mouseReleaseEvent(self, event):
         if event.button() == QtCore.Qt.LeftButton and self.rect().contains(event.pos()):
