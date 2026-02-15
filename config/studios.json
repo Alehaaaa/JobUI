@@ -511,7 +511,7 @@
                 "link": "a",
                 "location": {
                     "selector": "div.mt-1.text-md span",
-                    "index": "1:"
+                    "index": 1
                 }
             }
         }
@@ -521,6 +521,7 @@
         "name": "Airship Interactive",
         "logo_url": "https://images.teamtailor-cdn.com/images/s3/teamtailor-production/logotype-v3/image_uploads/cbe79bd4-3626-45ee-ba63-e35467190fef/original.png",
         "careers_url": "https://airshipinteractive.teamtailor.com/jobs",
+        "website": "",
         "scraping": {
             "strategy": "html",
             "container": "#jobs_list_container li",
@@ -529,7 +530,7 @@
                 "link": "a",
                 "location": {
                     "selector": "div.mt-1.text-md span",
-                    "index": "-1"
+                    "index": -1
                 }
             }
         }
@@ -547,7 +548,7 @@
                 "link": "a",
                 "location": {
                     "selector": "div.mt-1.text-md span",
-                    "index": "1:"
+                    "index": 1
                 }
             }
         }
@@ -568,7 +569,7 @@
                 },
                 "location": {
                     "selector": ".cities, .state",
-                    "index": "0:",
+                    "index": 0,
                     "default": "US"
                 }
             }
@@ -998,16 +999,18 @@
         "name": "3Doubles Producciones",
         "logo_url": "https://www.notodoanimacion.es/wp-content/uploads/2026/01/logo-3Doubles-Producciones-S.L-3.webp",
         "careers_url": "https://3doubles.factorial.es/#jobs",
+        "website": "",
         "scraping": {
             "strategy": "html",
-            "container": "li.job-offer-item[data-job-postings-url]",
             "map": {
                 "title": "div.factorial__headingFontFamily",
                 "link": "a.buttonSecondary",
                 "location": {
+                    "selector": "",
                     "find_previous": "h3"
                 }
-            }
+            },
+            "container": "li.job-offer-item[data-job-postings-url]"
         }
     },
     {

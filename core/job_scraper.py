@@ -287,7 +287,13 @@ class JobScraper:
         careers_url = studio.get("careers_url")
         scraping = studio.get("scraping", {})
 
-        response = self.session.get(careers_url)
+        method = scraping.get("method", "GET").upper()
+        params, payload, headers = scraping.get("params", {}), scraping.get("payload"), scraping.get("headers", {})
+
+        if method == "POST":
+            response = self.session.post(careers_url, json=payload, params=params, headers=headers)
+        else:
+            response = self.session.get(careers_url, params=params, headers=headers)
         response.raise_for_status()
 
         jt_cfg = scraping.get("json_text", {})
@@ -494,7 +500,13 @@ class JobScraper:
         scraping = studio.get("scraping", {})
         mapping = scraping.get("map", {})
 
-        response = self.session.get(rss_url)
+        method = scraping.get("method", "GET").upper()
+        params, payload, headers = scraping.get("params", {}), scraping.get("payload"), scraping.get("headers", {})
+
+        if method == "POST":
+            response = self.session.post(rss_url, json=payload, params=params, headers=headers)
+        else:
+            response = self.session.get(rss_url, params=params, headers=headers)
         response.raise_for_status()
 
         # Always use html.parser to avoid requiring the 'lxml' or 'xml' feature of BS4

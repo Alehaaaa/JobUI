@@ -271,10 +271,6 @@ class StudioWidget(QtWidgets.QFrame):
         # Outline / Style
         self.setStyleSheet(STUDIO_WIDGET_STYLE)
 
-        self.setFixedWidth(260)  # Fixed width for grid, dynamic height
-        self.setMinimumHeight(220)
-        self.setMaximumHeight(220)
-
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
@@ -373,6 +369,7 @@ class StudioWidget(QtWidgets.QFrame):
         menu.addSeparator()
 
         act_edit = menu.addAction("Edit Studio...")
+        act_edit.setIcon(resources.get_icon("edit.svg"))
         act_edit.triggered.connect(self.open_edit_dialog)
 
         menu.exec_(self.logo_label.mapToGlobal(pos))
@@ -380,7 +377,8 @@ class StudioWidget(QtWidgets.QFrame):
     def open_edit_dialog(self):
         from .studio_dialog import StudioDialog
 
-        dialog = StudioDialog(self.studio_data, self)
+        existing_ids = [s.get("id") for s in self.config_manager.get_studios()]
+        dialog = StudioDialog(self.studio_data, self, existing_ids=existing_ids, config_manager=self.config_manager)
         if dialog.exec_():
             # Delay update to avoid hard crash in Maya when parent widget is destroyed from child dialog signal
             QtCore.QTimer.singleShot(10, lambda: self.config_manager.update_studio(dialog.studio_data))
@@ -825,7 +823,8 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
     def open_add_studio_dialog(self):
         from .studio_dialog import StudioDialog
 
-        dialog = StudioDialog(parent=self)
+        existing_ids = [s.get("id") for s in self.config_manager.get_studios()]
+        dialog = StudioDialog(parent=self, existing_ids=existing_ids, config_manager=self.config_manager)
         if dialog.exec_():
             QtCore.QTimer.singleShot(10, lambda: self.config_manager.add_studio(dialog.studio_data))
 
@@ -912,6 +911,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QMainWindow):
         for studio in sorted_studios:
             is_enabled = self.config_manager.is_studio_enabled(studio.get("id"))
             sw = StudioWidget(studio, self.config_manager)
+            sw.setFixedSize(260, 220)
             self.studios_layout.addWidget(sw)
             self.studio_widgets.append(sw)
             if not is_enabled:

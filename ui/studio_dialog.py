@@ -2,598 +2,635 @@ try:
     from PySide2 import QtCore, QtWidgets
 except ImportError:
     from PySide6 import QtCore, QtWidgets
+
 import json
+import re
+
+from .flow_layout import FlowLayout
+from .widgets import WaitingSpinner, ClickableLabel
+from .studio_test import MockBrowser, TestWorker, TestPreviewDialog
 
 
 class StudioDialog(QtWidgets.QDialog):
     """
     Unified dialog for Adding or Editing Studio configurations.
-    If studio_data is provided, it operates in 'Edit' mode.
     """
-
     saved = QtCore.Signal(dict)
 
     @staticmethod
-    def expand_json(data):
-        """Recursively search for strings that are JSON and parse them."""
+    def expand_json_strings(data):
         if isinstance(data, dict):
-            return {k: StudioDialog.expand_json(v) for k, v in data.items()}
+            return {key: StudioDialog.expand_json_strings(value) for key, value in data.items()}
         if isinstance(data, list):
-            return [StudioDialog.expand_json(i) for i in data]
+            return [StudioDialog.expand_json_strings(item) for item in data]
         if isinstance(data, str):
-            s = data.strip()
-            if (s.startswith("{") and s.endswith("}")) or (s.startswith("[") and s.endswith("]")):
+            trimmed_str = data.strip()
+            if (trimmed_str.startswith("{") and trimmed_str.endswith("}")) or (trimmed_str.startswith("[") and trimmed_str.endswith("]")):
                 try:
-                    parsed = json.loads(data)
-                    return StudioDialog.expand_json(parsed)
+                    parsed_json = json.loads(data)
+                    return StudioDialog.expand_json_strings(parsed_json)
                 except Exception:
                     pass
         return data
 
     @staticmethod
-    def compact_json(data):
-        """Re-encode dicts/lists as compact strings if they are values in the root dict."""
+    def compact_json_objects(data):
         if not isinstance(data, dict):
             return data
-
-        out = {}
-        for k, v in data.items():
-            if isinstance(v, (dict, list)):
-                # Convert back to compact string for compatibility
-                out[k] = json.dumps(v, separators=(",", ":"))
+        compacted_data = {}
+        for key, value in data.items():
+            if isinstance(value, (dict, list)):
+                compacted_data[key] = json.dumps(value, separators=(",", ":"))
             else:
-                out[k] = v
-        return out
+                compacted_data[key] = value
+        return compacted_data
 
-    def __init__(self, studio_data=None, parent=None):
+    def __init__(self, studio_data=None, parent=None, existing_ids=None, config_manager=None):
         super(StudioDialog, self).__init__(parent)
         self.studio_data = dict(studio_data) if studio_data else None
-        self.is_edit = self.studio_data is not None
+        self.is_edit_mode = self.studio_data is not None
+        self.existing_studio_ids = existing_ids or []
+        self.config_manager = config_manager
+        
+        self.last_test_jobs = []
+        self.last_test_config = None
+        self.last_test_logo_path = None
+        self.test_worker = None
+        
+        self.interacted_fields = set()
+        self.mandatory_labels = {}
+        self.regex_error_labels = {}
+        self.regex_input_fields = {}
+        self.initial_studio_config = None
 
-        mode_title = "Edit" if self.is_edit else "Add"
-        self.setWindowTitle(f"{mode_title} Studio")
-        self.setMinimumWidth(680)
-        self.setMinimumHeight(600)
+        mode_title = "Edit" if self.is_edit_mode else "Add"
+        self.setWindowTitle(mode_title + " Studio")
+        self.setMinimumWidth(720)
+        self.setMinimumHeight(650)
 
-        self.layout = QtWidgets.QVBoxLayout(self)
-        self.layout.setSpacing(10)
-        self.layout.setContentsMargins(15, 15, 15, 15)
+        self.main_layout = QtWidgets.QVBoxLayout(self)
+        self.main_layout.setSpacing(12)
+        self.main_layout.setContentsMargins(15, 15, 15, 15)
 
-        # -- Header --
-        title_lbl = QtWidgets.QLabel(f"{mode_title} Studio Configuration")
-        font = title_lbl.font()
-        font.setBold(True)
-        font.setPointSize(11)
-        title_lbl.setFont(font)
-        self.layout.addWidget(title_lbl)
+        title_label = QtWidgets.QLabel(mode_title + " Studio Configuration")
+        f = title_label.font()
+        f.setBold(True)
+        f.setPointSize(12)
+        title_label.setFont(f)
+        self.main_layout.addWidget(title_label)
 
-        # -- ID Info/Input --
-        id_layout = QtWidgets.QHBoxLayout()
-        id_lbl = QtWidgets.QLabel("<b>Internal ID:</b>")
-        id_lbl.setFixedWidth(100)
-        id_layout.addWidget(id_lbl)
+        self.scroll_area = QtWidgets.QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.content_container = QtWidgets.QWidget()
+        self.content_layout = QtWidgets.QVBoxLayout(self.content_container)
+        self.content_layout.setSpacing(15)
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.scroll_area.setWidget(self.content_container)
+        self.main_layout.addWidget(self.scroll_area)
 
-        if self.is_edit:
-            self.id_display = QtWidgets.QLabel(self.studio_data.get("id", ""))
-            self.id_display.setStyleSheet("color: #888;")
-            id_layout.addWidget(self.id_display)
-        else:
+        identity_group = QtWidgets.QGroupBox("Studio Identity")
+        self.identity_form = QtWidgets.QFormLayout(identity_group)
+        self.identity_form.setLabelAlignment(QtCore.Qt.AlignRight)
+        self.identity_form.setSpacing(10)
+        self.identity_form.setContentsMargins(15, 15, 15, 15)
+
+        if not self.is_edit_mode:
             self.id_input = QtWidgets.QLineEdit()
-            self.id_input.setPlaceholderText("internal_id (e.g. disney)")
-            id_layout.addWidget(self.id_input)
-
-        id_layout.addStretch()
-        self.layout.addLayout(id_layout)
-
-        # -- Scroll Area for Form --
-        self.scroll = QtWidgets.QScrollArea()
-        self.scroll.setWidgetResizable(True)
-        self.scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
-        self.container = QtWidgets.QWidget()
-        self.form_layout = QtWidgets.QVBoxLayout(self.container)
-        self.form_layout.setSpacing(10)
-        self.scroll.setWidget(self.container)
-        self.layout.addWidget(self.scroll)
-
-        # -- 1. Basic Info Section --
-        basic_group = QtWidgets.QGroupBox("Basic Information")
-        basic_form = QtWidgets.QFormLayout(basic_group)
-        basic_form.setSpacing(4)
-        basic_form.setContentsMargins(8, 12, 8, 8)
+            self.id_input.setPlaceholderText("internal_id")
+            self.id_input.textChanged.connect(lambda: self._on_field_interacted("id"))
+            self._add_mandatory_row("Internal ID *:", self.id_input, "id")
+        else:
+            self.id_display = QtWidgets.QLabel(self.studio_data.get("id", ""))
+            self.id_display.setStyleSheet("color: #888; font-family: monospace;")
+            self.identity_form.addRow("Internal ID:", self.id_display)
 
         self.name_input = QtWidgets.QLineEdit()
-        self.name_input.setPlaceholderText("Studio Display Name")
-        basic_form.addRow("Display Name:", self.name_input)
+        self.name_input.textChanged.connect(self._on_studio_name_changed)
+        self._add_mandatory_row("Name *:", self.name_input, "name")
 
-        self.logo_input = QtWidgets.QLineEdit()
-        self.logo_input.setPlaceholderText("https://url.to/logo.png")
-        basic_form.addRow("Logo URL:", self.logo_input)
-
+        c_row = QtWidgets.QHBoxLayout()
         self.careers_input = QtWidgets.QLineEdit()
-        self.careers_input.setPlaceholderText("Scraping target URL")
-        basic_form.addRow("Careers URL:", self.careers_input)
+        self.careers_input.textChanged.connect(lambda: self._on_field_interacted("careers"))
+        c_row.addWidget(self.careers_input, 1)
+        btn_p_c = self._create_utility_button("🔗", "Preview Careers")
+        btn_p_c.clicked.connect(lambda: self._open_internal_browser(self.careers_input.text()))
+        c_row.addWidget(btn_p_c)
+        self._add_mandatory_row("Careers URL *:", c_row, "careers")
 
+        w_row = QtWidgets.QHBoxLayout()
         self.website_input = QtWidgets.QLineEdit()
-        self.website_input.setPlaceholderText("Studio website")
-        basic_form.addRow("Website:", self.website_input)
+        w_row.addWidget(self.website_input, 1)
+        btn_p_w = self._create_utility_button("🔗", "Preview Website")
+        btn_p_w.clicked.connect(lambda: self._open_internal_browser(self.website_input.text()))
+        w_row.addWidget(btn_p_w)
+        self.identity_form.addRow("Website:", w_row)
 
-        self.form_layout.addWidget(basic_group)
+        l_row = QtWidgets.QHBoxLayout()
+        self.logo_input = QtWidgets.QLineEdit()
+        l_row.addWidget(self.logo_input, 1)
+        btn_p_l = self._create_utility_button("🖼️", "Preview Logo")
+        btn_p_l.clicked.connect(lambda: self._open_internal_browser(self.logo_input.text()))
+        l_row.addWidget(btn_p_l)
+        self.identity_form.addRow("Logo URL:", l_row)
+        
+        self.content_layout.addWidget(identity_group)
 
-        # -- 2. Scraping Strategy --
-        strat_group = QtWidgets.QGroupBox("Scraping Strategy")
-        strat_vbox = QtWidgets.QVBoxLayout(strat_group)
-        strat_vbox.setContentsMargins(8, 8, 8, 8)
-        strat_vbox.setSpacing(5)
+        strategy_group = QtWidgets.QGroupBox("Scraping Strategy")
+        s_layout = QtWidgets.QVBoxLayout(strategy_group)
+        s_sel = QtWidgets.QHBoxLayout()
+        self.radio_html_strategy = QtWidgets.QRadioButton("HTML")
+        self.radio_json_strategy = QtWidgets.QRadioButton("JSON")
+        self.radio_html_strategy.setChecked(True)
+        self.strategy_button_group = QtWidgets.QButtonGroup(self)
+        self.strategy_button_group.addButton(self.radio_html_strategy)
+        self.strategy_button_group.addButton(self.radio_json_strategy)
+        s_sel.addWidget(self.radio_html_strategy)
+        s_sel.addWidget(self.radio_json_strategy)
+        s_sel.addStretch()
+        s_layout.addLayout(s_sel)
+        
+        self.strategy_tabs = QtWidgets.QTabWidget()
+        self.strategy_tabs.currentChanged.connect(self._on_tab_switched)
+        s_layout.addWidget(self.strategy_tabs)
 
-        h_strat = QtWidgets.QHBoxLayout()
-        self.radio_html = QtWidgets.QRadioButton("HTML (CSS Selectors)")
-        self.radio_json = QtWidgets.QRadioButton("JSON (API Paths)")
-        self.radio_html.setChecked(True)
-        self.btn_group_strat = QtWidgets.QButtonGroup(self)
-        self.btn_group_strat.addButton(self.radio_html)
-        self.btn_group_strat.addButton(self.radio_json)
-        h_strat.addWidget(self.radio_html)
-        h_strat.addWidget(self.radio_json)
-        h_strat.addStretch()
-        strat_vbox.addLayout(h_strat)
+        self.mapping_tab = QtWidgets.QWidget()
+        m_layout = QtWidgets.QVBoxLayout(self.mapping_tab)
+        self.root_selector_stack = QtWidgets.QStackedWidget()
+        
+        self.html_root_page = QtWidgets.QWidget()
+        hr_layout = QtWidgets.QHBoxLayout(self.html_root_page)
+        self.label_html_root = QtWidgets.QLabel("<b>Container *:</b>")
+        self.html_container_input = QtWidgets.QLineEdit()
+        self.html_container_input.textChanged.connect(lambda: self._on_field_interacted("html_root"))
+        hr_layout.addWidget(self.label_html_root)
+        hr_layout.addWidget(self.html_container_input)
+        self.mandatory_labels["html_root"] = self.label_html_root
+        
+        self.json_root_page = QtWidgets.QWidget()
+        jr_layout = QtWidgets.QHBoxLayout(self.json_root_page)
+        self.label_json_root = QtWidgets.QLabel("<b>JSON Path *:</b>")
+        self.json_items_path_input = QtWidgets.QLineEdit()
+        self.json_items_path_input.textChanged.connect(lambda: self._on_field_interacted("json_root"))
+        jr_layout.addWidget(self.label_json_root)
+        jr_layout.addWidget(self.json_items_path_input)
+        self.mandatory_labels["json_root"] = self.label_json_root
 
-        self.strat_group = strat_group
-        self.tabs = QtWidgets.QTabWidget()
-        self.tabs.currentChanged.connect(self._on_tab_changed)
-        strat_vbox.addWidget(self.tabs, 1)
+        self.root_selector_stack.addWidget(self.html_root_page)
+        self.root_selector_stack.addWidget(self.json_root_page)
+        m_layout.addWidget(self.root_selector_stack)
+        
+        opts_list = ["source", "attr", "index", "regex", "prefix", "suffix", "find_previous", "find_next_sibling"]
+        self.title_mapping_input, self.title_mapping_options = self._add_field_mapping_card(m_layout, "Title", opts_list + ["remove_from_title"])
+        self.link_mapping_input, self.link_mapping_options = self._add_field_mapping_card(m_layout, "Link", opts_list)
+        self.location_mapping_input, self.location_mapping_options = self._add_field_mapping_card(m_layout, "Location", opts_list)
+        
+        m_layout.addStretch()
+        self.strategy_tabs.addTab(self.mapping_tab, "Mappings")
 
-        # --- TAB: Mapping ---
-        self.tab_mapping = QtWidgets.QWidget()
-        map_vbox = QtWidgets.QVBoxLayout(self.tab_mapping)
-        map_vbox.setContentsMargins(8, 8, 8, 8)
-        map_vbox.setSpacing(5)
+        self.request_tab = QtWidgets.QWidget()
+        req_layout = QtWidgets.QVBoxLayout(self.request_tab)
+        
+        method_layout = QtWidgets.QHBoxLayout()
+        method_layout.addWidget(QtWidgets.QLabel("<b>HTTP Method:</b>"))
+        self.request_method_combo = QtWidgets.QComboBox()
+        self.request_method_combo.addItems(["GET", "POST"])
+        self.request_method_combo.currentTextChanged.connect(lambda: self._on_field_interacted("method"))
+        method_layout.addWidget(self.request_method_combo)
+        method_layout.addStretch()
+        req_layout.addLayout(method_layout)
+        
+        self.request_params_input = self._create_json_text_input("Parameters:", req_layout)
+        self.request_payload_input = self._create_json_text_input("Payload:", req_layout)
+        self.request_headers_input = self._create_json_text_input("Headers:", req_layout)
+        self.strategy_tabs.addTab(self.request_tab, "Request")
 
-        self.stack_root = QtWidgets.QStackedWidget()
-        map_vbox.addWidget(self.stack_root)
+        self.strategy_tabs.addTab(QtWidgets.QWidget(), "Filters")
+        self.content_layout.addWidget(strategy_group)
 
-        # HTML Root
-        self.page_html_root = QtWidgets.QWidget()
-        html_root_form = QtWidgets.QFormLayout(self.page_html_root)
-        html_root_form.setContentsMargins(0, 0, 0, 0)
-        html_root_form.setVerticalSpacing(4)
-        self.html_container = QtWidgets.QLineEdit()
-        html_root_form.addRow("Container:", self.html_container)
-
-        # JSON Root
-        self.page_json_root = QtWidgets.QWidget()
-        json_root_form = QtWidgets.QFormLayout(self.page_json_root)
-        json_root_form.setContentsMargins(0, 0, 0, 0)
-        json_root_form.setVerticalSpacing(4)
-        self.json_path = QtWidgets.QLineEdit()
-        json_root_form.addRow("Items Path:", self.json_path)
-
-        self.stack_root.addWidget(self.page_html_root)
-        self.stack_root.addWidget(self.page_json_root)
-
-        mapping_group = QtWidgets.QGroupBox("Field Mappings")
-        mapping_vbox = QtWidgets.QVBoxLayout(mapping_group)
-        mapping_vbox.setContentsMargins(8, 12, 8, 8)
-        mapping_vbox.setSpacing(2)
-
-        self.field_title, self.field_title_opts = self._add_field(mapping_vbox, "Title", options=["source"])
-        self.field_link, self.field_link_opts = self._add_field(
-            mapping_vbox, "Link", options=["source", "attr", "prefix", "suffix"]
-        )
-        self.field_location, self.field_loc_opts = self._add_field(
-            mapping_vbox, "Location", options=["source", "index", "regex", "suffix", "remove_from_title"]
-        )
-        self.find_prev_widget, self.field_find_prev = self._add_labelled_field(mapping_vbox, "Find Prev (HTML):")
-
-        map_vbox.addWidget(mapping_group)
-        map_vbox.addStretch()
-        self.tab_mapping.setLayout(map_vbox)
-        self.tabs.addTab(self.tab_mapping, "Mappings")
-
-        # --- TAB: Request ---
-        self.tab_request = QtWidgets.QWidget()
-        req_vbox = QtWidgets.QVBoxLayout(self.tab_request)
-        req_vbox.setContentsMargins(8, 8, 8, 8)
-        req_vbox.setSpacing(6)
-
-        # Method row
-        h_method = QtWidgets.QHBoxLayout()
-        lbl_method = QtWidgets.QLabel("<b>HTTP Method:</b>")
-        lbl_method.setFixedWidth(100)
-        h_method.addWidget(lbl_method)
-        self.req_method = QtWidgets.QComboBox()
-        self.req_method.addItems(["GET", "POST"])
-        h_method.addWidget(self.req_method)
-        h_method.addStretch()
-        req_vbox.addLayout(h_method)
-
-        # Params row
-        h_params = QtWidgets.QHBoxLayout()
-        lbl_params = QtWidgets.QLabel("<b>Params:</b>")
-        lbl_params.setFixedWidth(100)
-        h_params.addWidget(lbl_params, 0, QtCore.Qt.AlignTop)
-        self.req_params = QtWidgets.QPlainTextEdit()
-        self.req_params.setPlaceholderText('JSON query parameters (e.g. {"category": "vfx"})')
-        h_params.addWidget(self.req_params)
-        req_vbox.addLayout(h_params, 1)
-
-        # Payload row
-        h_payload = QtWidgets.QHBoxLayout()
-        lbl_payload = QtWidgets.QLabel("<b>Payload:</b>")
-        lbl_payload.setFixedWidth(100)
-        h_payload.addWidget(lbl_payload, 0, QtCore.Qt.AlignTop)
-        self.req_payload = QtWidgets.QPlainTextEdit()
-        h_payload.addWidget(self.req_payload)
-        req_vbox.addLayout(h_payload, 1)
-
-        # Headers row
-        h_headers = QtWidgets.QHBoxLayout()
-        lbl_headers = QtWidgets.QLabel("<b>Headers:</b>")
-        lbl_headers.setFixedWidth(100)
-        h_headers.addWidget(lbl_headers, 0, QtCore.Qt.AlignTop)
-        self.req_headers = QtWidgets.QPlainTextEdit()
-        h_headers.addWidget(self.req_headers)
-        req_vbox.addLayout(h_headers, 1)
-
-        self.tabs.addTab(self.tab_request, "Request")
-
-        # --- TAB: Filters ---
-        self.tab_filters = QtWidgets.QWidget()
-        filt_form = QtWidgets.QFormLayout(self.tab_filters)
-        filt_form.setContentsMargins(10, 10, 10, 10)
-        filt_form.setSpacing(6)
-        self.filter_key = QtWidgets.QLineEdit()
-        filt_form.addRow("Filter Key:", self.filter_key)
-        self.filter_sw = QtWidgets.QLineEdit()
-        filt_form.addRow("Starts With:", self.filter_sw)
-        self.tabs.addTab(self.tab_filters, "JSON Filters")
-
-        self.form_layout.addWidget(self.strat_group, 1)
-        self.form_layout.addStretch(0)  # Spacer that takes over when Request tab isn't active
-        self._strat_idx = self.form_layout.count() - 2
-        self._spacer_idx = self.form_layout.count() - 1
-
-        # -- Footer --
-        btn_layout = QtWidgets.QHBoxLayout()
+        footer = QtWidgets.QHBoxLayout()
+        self.test_spinner = WaitingSpinner()
+        self.test_spinner.setFixedSize(16, 16)
+        self.test_spinner.hide()
+        
+        self.test_status_label = ClickableLabel("")
+        self.test_status_label.setStyleSheet("font-size: 11px;")
+        self.test_status_label.clicked.connect(self.on_show_test_preview)
+        
+        footer.addWidget(self.test_spinner)
+        footer.addWidget(self.test_status_label)
+        footer.addStretch()
+        
         self.cancel_btn = QtWidgets.QPushButton("Cancel")
         self.cancel_btn.clicked.connect(self.reject)
-        self.cancel_btn.setFixedHeight(26)
-
-        save_label = "Update Studio" if self.is_edit else "Add Studio"
-        self.save_btn = QtWidgets.QPushButton(save_label)
-        self.save_btn.clicked.connect(self.on_save)
-        self.save_btn.setFixedHeight(26)
+        
+        self.test_btn = QtWidgets.QPushButton("Test")
+        self.test_btn.clicked.connect(self.on_test_config)
+        
+        btn_label = "Update Studio" if self.is_edit_mode else "Add Studio"
+        self.save_btn = QtWidgets.QPushButton(btn_label)
+        self.save_btn.clicked.connect(self.on_save_config)
         self.save_btn.setDefault(True)
-
-        btn_layout.addStretch()
-        btn_layout.addWidget(self.cancel_btn)
-        btn_layout.addWidget(self.save_btn)
-        self.layout.addLayout(btn_layout)
-
-        # -- Connections --
-        self.radio_html.toggled.connect(lambda: self._on_tab_changed(self.tabs.currentIndex()))
-
-        if self.is_edit:
-            self.init_data()
+        
+        footer.addWidget(self.cancel_btn)
+        footer.addWidget(self.test_btn)
+        footer.addWidget(self.save_btn)
+        self.main_layout.addLayout(footer)
+        
+        self.radio_html_strategy.toggled.connect(self._on_tab_switched)
+        if self.is_edit_mode:
+            self.interacted_fields.update(["name", "careers", "html_root", "json_root"])
+            self.load_studio_data()
         else:
-            self._on_tab_changed(self.tabs.currentIndex())  # Force initial visibility state
+            self._on_tab_switched(0)
+            
+        self._connect_all_fields()
+        self.initial_studio_config = self._build_studio_config_dict()
+        self._validate_all_fields(show_visual_errors=self.is_edit_mode)
+        self._check_for_changes()
 
-    def _on_tab_changed(self, index):
-        is_html = self.radio_html.isChecked()
-        self.stack_root.setCurrentIndex(0 if is_html else 1)
-        self.tabs.setTabEnabled(2, not is_html)
-        self.find_prev_widget.setVisible(is_html)
+    def _create_utility_button(self, icon, tip):
+        b = QtWidgets.QPushButton(icon)
+        b.setFixedSize(24, 24)
+        b.setToolTip(tip)
+        b.setCursor(QtCore.Qt.PointingHandCursor)
+        b.setStyleSheet("QPushButton { background: rgba(128,128,128,20); border: 1px solid rgba(128,128,128,30); border-radius: 3px; }")
+        return b
 
-        # Dynamic stretch: only expand the strategy group if in Request tab (index 1)
-        # to fulfill "grow to fill space" without making other tabs look empty.
-        is_request = index == 1
-        self.form_layout.setStretch(self._strat_idx, 1 if is_request else 0)
-        self.form_layout.setStretch(self._spacer_idx, 0 if is_request else 1)
+    def _open_internal_browser(self, url):
+        if not url:
+            return
+        url = url.strip()
+        if not (url.startswith("http") or url.startswith("/")):
+            return
+        if url.startswith("/"):
+            base = self.website_input.text().strip() or self.careers_input.text().strip()
+            if base:
+                url = base.rstrip('/') + url
+        d = MockBrowser(url, self)
+        d.exec_()
 
-    def _add_field(self, parent_layout, label, options=None):
-        container = QtWidgets.QWidget()
-        vbox = QtWidgets.QVBoxLayout(container)
-        vbox.setContentsMargins(0, 0, 0, 0)
-        vbox.setSpacing(2)
-        main_h = QtWidgets.QHBoxLayout()
-        lbl = QtWidgets.QLabel(f"<b>{label}:</b>")
-        lbl.setFixedWidth(100)
-        main_h.addWidget(lbl)
-        main_input = QtWidgets.QLineEdit()
-        main_h.addWidget(main_input)
-        vbox.addLayout(main_h)
-        opt_widgets = {}
-        if options:
-            opt_h = QtWidgets.QHBoxLayout()
-            opt_h.setContentsMargins(110, 0, 0, 0)
-            opt_h.setSpacing(8)
-            for opt in options:
-                if opt == "remove_from_title":
-                    cb = QtWidgets.QCheckBox("Clean Title")
-                    cb.setStyleSheet("font-size: 10px;")
-                    opt_h.addWidget(cb)
-                    opt_widgets[opt] = cb
-                elif opt == "source":
-                    h = QtWidgets.QHBoxLayout()
-                    h.setSpacing(3)
-                    lbl = QtWidgets.QLabel("source:")
-                    lbl.setStyleSheet("font-size: 10px; color: #888;")
-                    combo = QtWidgets.QComboBox()
-                    combo.addItems(["item", "url"])
-                    combo.setFixedHeight(18)
-                    combo.setStyleSheet("font-size: 10px;")
-                    h.addWidget(lbl)
-                    h.addWidget(combo)
-                    opt_h.addLayout(h)
-                    opt_widgets[opt] = combo
+    def _on_field_interacted(self, k):
+        self.interacted_fields.add(k)
+        self._validate_field(k)
+        self._check_for_changes()
+
+    def _check_for_changes(self):
+        if self.initial_studio_config is None:
+            return
+        current = self._build_studio_config_dict()
+        has_changed = current != self.initial_studio_config
+        self.save_btn.setEnabled(has_changed)
+        # Visual hint for disabled state
+        if has_changed:
+            self.save_btn.setStyleSheet("")
+        else:
+            self.save_btn.setStyleSheet("color: #777; background: rgba(128,128,128,10);")
+
+    def _connect_all_fields(self):
+        # Basic fields
+        self.website_input.textChanged.connect(lambda: self._on_field_interacted("website"))
+        self.logo_input.textChanged.connect(lambda: self._on_field_interacted("logo"))
+        
+        # Mapping inputs
+        for inp in [self.title_mapping_input, self.link_mapping_input, self.location_mapping_input]:
+            inp.textChanged.connect(lambda: self._on_field_interacted("mapping"))
+            
+        # Mapping options
+        for opts in [self.title_mapping_options, self.link_mapping_options, self.location_mapping_options]:
+            for w in opts.values():
+                if isinstance(w, QtWidgets.QCheckBox):
+                    w.toggled.connect(lambda: self._on_field_interacted("mapping_opt"))
+                elif isinstance(w, QtWidgets.QSpinBox):
+                    w.valueChanged.connect(lambda: self._on_field_interacted("mapping_opt"))
+                elif isinstance(w, QtWidgets.QLineEdit):
+                    w.textChanged.connect(lambda: self._on_field_interacted("mapping_opt"))
+
+        # Request fields
+        for inp in [self.request_params_input, self.request_payload_input, self.request_headers_input]:
+            inp.textChanged.connect(lambda: self._on_field_interacted("request"))
+        self.request_method_combo.currentTextChanged.connect(lambda: self._on_field_interacted("method"))
+
+    def _on_studio_name_changed(self, name):
+        self._on_field_interacted("name")
+        if not self.is_edit_mode and name and hasattr(self, 'id_input'):
+            slug = re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_')
+            curr = self.id_input.text()
+            if not curr or curr.startswith(slug[:-1]) or slug.startswith(curr):
+                self.id_input.setText(slug)
+
+    def _add_mandatory_row(self, txt, w, k):
+        l = QtWidgets.QLabel("<b>" + str(txt) + "</b>")
+        self.mandatory_labels[k] = l
+        self.identity_form.addRow(l, w)
+
+    def _validate_field(self, k):
+        is_html = self.radio_html_strategy.isChecked()
+        has_err, msg = False, ""
+        if k == "id" and not self.is_edit_mode and hasattr(self, 'id_input'):
+            val = self.id_input.text().strip()
+            if not val:
+                has_err, msg = True, "ID is required."
+            elif val in self.existing_studio_ids:
+                has_err, msg = True, "ID exists."
+        elif k == "name":
+            if not self.name_input.text().strip():
+                has_err, msg = True, "Name required."
+        elif k == "careers":
+            val = self.careers_input.text().strip()
+            if not val:
+                has_err, msg = True, "Careers required."
+            elif not re.match(r"^(https?://|/)", val):
+                has_err, msg = True, "Invalid URL."
+        elif k == "html_root" and is_html:
+            if not self.html_container_input.text().strip():
+                has_err, msg = True, "Selector required."
+        elif k == "json_root" and not is_html:
+            if not self.json_items_path_input.text().strip():
+                has_err, msg = True, "Path required."
+        elif k.startswith("regex_") and k in self.regex_input_fields:
+            p = self.regex_input_fields[k].text().strip()
+            if p:
+                try:
+                    re.compile(p)
+                except Exception as e:
+                    has_err, msg = True, str(e)
+        l = self.mandatory_labels.get(k) or self.regex_error_labels.get(k)
+        if l:
+            if k in self.interacted_fields:
+                if has_err:
+                    l.setStyleSheet("color: #ff5555;")
+                    l.setToolTip(msg)
                 else:
-                    h = QtWidgets.QHBoxLayout()
-                    h.setSpacing(3)
-                    lbl = QtWidgets.QLabel(f"{opt}:")
-                    lbl.setStyleSheet("font-size: 10px; color: #888;")
-                    edit = QtWidgets.QLineEdit()
-                    edit.setFixedHeight(18)
-                    edit.setStyleSheet("font-size: 10px;")
-                    if opt in ["index", "attr"]:
-                        edit.setFixedWidth(50)
-                    h.addWidget(lbl)
-                    h.addWidget(edit)
-                    opt_h.addLayout(h)
-                    opt_widgets[opt] = edit
-            opt_h.addStretch()
-            vbox.addLayout(opt_h)
-        parent_layout.addWidget(container)
-        return (main_input, opt_widgets) if options else main_input
+                    color_style = "color: #5cb85c;" if k.startswith("regex_") and self.regex_input_fields[k].text().strip() else ""
+                    l.setStyleSheet(color_style)
+                    l.setToolTip("")
+            else:
+                l.setStyleSheet("")
+                l.setToolTip("")
+        return has_err, msg
 
-    def _add_labelled_field(self, parent_layout, label, placeholder=""):
-        container = QtWidgets.QWidget()
-        h = QtWidgets.QHBoxLayout(container)
-        h.setContentsMargins(0, 0, 0, 0)
-        h.setSpacing(2)
-        lbl = QtWidgets.QLabel(f"<b>{label}</b>")
-        lbl.setFixedWidth(100)
-        h.addWidget(lbl)
-        edit = QtWidgets.QLineEdit()
-        edit.setPlaceholderText(placeholder)
-        h.addWidget(edit)
-        parent_layout.addWidget(container)
-        return container, edit
+    def _validate_all_fields(self, show_visual_errors=True):
+        if show_visual_errors:
+            self.interacted_fields.update(["id", "name", "careers", "html_root", "json_root"])
+            self.interacted_fields.update(self.regex_input_fields.keys())
+        errs = []
+        check_keys = ["id", "name", "careers", "html_root", "json_root"] + list(self.regex_input_fields.keys())
+        for k in check_keys:
+            h, m = self._validate_field(k)
+            if h:
+                errs.append(m)
+        return errs
 
-    def init_data(self):
+    def _create_json_text_input(self, txt, layout):
+        layout.addWidget(QtWidgets.QLabel("<b>" + str(txt) + "</b>"))
+        e = QtWidgets.QPlainTextEdit()
+        e.setMaximumHeight(80)
+        e.setStyleSheet("font-family: monospace; font-size: 11px;")
+        layout.addWidget(e)
+        return e
+
+    def _add_field_mapping_card(self, layout, txt, opts=None):
+        cf = QtWidgets.QFrame()
+        cf.setStyleSheet("QFrame { background: rgba(128,128,128,15); border: 1px solid rgba(128,128,128,30); border-radius: 6px; }")
+        cl = QtWidgets.QVBoxLayout(cf)
+        cl.setContentsMargins(10, 10, 10, 6)
+        cl.setSpacing(6)
+        r = QtWidgets.QHBoxLayout()
+        h = QtWidgets.QLabel("<b>" + str(txt) + ":</b>")
+        h.setFixedWidth(80)
+        h.setAlignment(QtCore.Qt.AlignRight)
+        r.addWidget(h)
+        inp = QtWidgets.QLineEdit()
+        r.addWidget(inp)
+        cl.addLayout(r)
+        mapped = {}
+        if opts:
+            oc = QtWidgets.QWidget()
+            oc.setContentsMargins(85, 0, 0, 4)
+            fl = FlowLayout(oc, 0, 12, 6)
+            for ok in opts:
+                row = QtWidgets.QHBoxLayout()
+                row.setContentsMargins(0, 0, 0, 0)
+                row.setSpacing(4)
+                if ok in ["source", "remove_from_title"]:
+                    label_text = "From URL" if ok == "source" else "Clean Location"
+                    w = QtWidgets.QCheckBox(label_text)
+                    w.setStyleSheet("font-size: 10px;")
+                    row.addWidget(w)
+                    mapped[ok] = w
+                elif ok == "index":
+                    l = QtWidgets.QLabel("Index:")
+                    sb = QtWidgets.QSpinBox()
+                    sb.setRange(-999, 999)
+                    sb.setFixedSize(50, 18)
+                    row.addWidget(l)
+                    row.addWidget(sb)
+                    mapped[ok] = sb
+                else:
+                    d = {"attr": "Attr:", "regex": "Regex:", "prefix": "Pre:", "suffix": "Suf:", "find_previous": "Prev:", "find_next_sibling": "Next:"}
+                    label_name = d.get(ok, str(ok) + ":")
+                    l = QtWidgets.QLabel(label_name)
+                    l.setStyleSheet("font-size: 10px;")
+                    i = QtWidgets.QLineEdit()
+                    i.setFixedSize(60 if ok=="attr" else 90, 18)
+                    if ok in ["regex", "find_previous", "find_next_sibling"]:
+                        rk = "regex_" + str(txt).lower() + "_" + str(ok)
+                        self.regex_error_labels[rk] = l
+                        self.regex_input_fields[rk] = i
+                        i.textChanged.connect(lambda _, k=rk: self._on_field_interacted(k))
+                    row.addWidget(l)
+                    row.addWidget(i)
+                    mapped[ok] = i
+                wr = QtWidgets.QWidget()
+                wr.setLayout(row)
+                fl.addWidget(wr)
+            cl.addWidget(oc)
+        layout.addWidget(cf)
+        return inp, mapped
+
+    def _on_tab_switched(self, idx):
+        is_h = self.radio_html_strategy.isChecked()
+        self.root_selector_stack.setCurrentIndex(0 if is_h else 1)
+        self._on_field_interacted("strategy")
+        self._validate_all_fields(False)
+
+    def _apply_mapping(self, val, inp, opts, is_h):
+        if not isinstance(val, dict):
+            inp.setText(str(val))
+            return
+        inp.setText(str(val.get("selector" if is_h else "path", "")))
+        for k, w in opts.items():
+            if k == "source":
+                w.setChecked(val.get("source") == "url")
+            elif isinstance(w, QtWidgets.QSpinBox):
+                try:
+                    w.setValue(int(val.get(k, 0)))
+                except (ValueError, TypeError):
+                    w.setValue(0)
+            elif isinstance(w, QtWidgets.QLineEdit):
+                w.setText(str(val.get(k, "")))
+
+    def load_studio_data(self):
         if not self.studio_data:
             return
-
         self.name_input.setText(self.studio_data.get("name", ""))
-        logo_url = self.studio_data.get("logo_url", "")
-        self.logo_input.setText(logo_url)
-
-        c_url = self.studio_data.get("careers_url", "")
-        if isinstance(c_url, list):
-            self.careers_input.setText(", ".join(c_url))
-        else:
-            self.careers_input.setText(str(c_url))
-
+        self.logo_input.setText(self.studio_data.get("logo_url", ""))
+        curl = self.studio_data.get("careers_url", "")
+        self.careers_input.setText(", ".join(curl) if isinstance(curl, list) else str(curl))
         self.website_input.setText(self.studio_data.get("website", ""))
-
-        scrap = self.studio_data.get("scraping", {})
-        mapping = scrap.get("map", {})
-        strat = scrap.get("strategy", "html")
-
-        if scrap.get("url_location_regex"):
-            # Migration path: if old field exists, put it in location source
-            self.field_location.setText("")
-            self.field_loc_opts["source"].setCurrentText("url")
-            self.field_loc_opts["regex"].setText(scrap.get("url_location_regex"))
-
+        sc = self.studio_data.get("scraping", {})
+        strat = sc.get("strategy", "html")
+        is_h = strat != "json"
+        fm = sc.get("map", {})
+        if sc.get("url_location_regex"):
+            self.location_mapping_options["source"].setChecked(True)
+            self.location_mapping_options["regex"].setText(sc.get("url_location_regex"))
         if strat == "json":
-            self.radio_json.setChecked(True)
-            self.json_path.setText(scrap.get("path", ""))
-
-            # Title
-            t = mapping.get("title", "")
-            if isinstance(t, dict):
-                self.field_title.setText(t.get("path", ""))
-                if "source" in t:
-                    self.field_title_opts["source"].setCurrentText(t["source"])
-            else:
-                self.field_title.setText(str(t))
-
-            # Location
-            loc = mapping.get("location", "")
-            if isinstance(loc, dict):
-                self.field_location.setText(loc.get("path", ""))
-                if "source" in loc:
-                    self.field_loc_opts["source"].setCurrentText(loc["source"])
-                self.field_loc_opts["regex"].setText(loc.get("regex", ""))
-            else:
-                self.field_location.setText(str(loc))
-
-            link = mapping.get("link", "")
-            if isinstance(link, dict):
-                self.field_link.setText(link.get("path", ""))
-                if "source" in link:
-                    self.field_link_opts["source"].setCurrentText(link["source"])
-                self.field_link_opts["prefix"].setText(link.get("prefix", ""))
-                self.field_link_opts["suffix"].setText(link.get("suffix", ""))
-            else:
-                self.field_link.setText(str(link))
-            # Filter
-            f = scrap.get("filter", {})
-            self.filter_key.setText(f.get("key", ""))
-            self.filter_sw.setText(f.get("startswith", ""))
+            self.radio_json_strategy.setChecked(True)
+            self.json_items_path_input.setText(sc.get("path", ""))
         else:
-            self.radio_html.setChecked(True)
-            self.html_container.setText(scrap.get("container", ""))
-            # Title
-            t = mapping.get("title", "")
-            if isinstance(t, dict):
-                self.field_title.setText(t.get("selector", ""))
-                self.field_find_prev.setText(t.get("find_previous", ""))
-                if "source" in t:
-                    self.field_title_opts["source"].setCurrentText(t["source"])
-            else:
-                self.field_title.setText(str(t))
+            self.radio_html_strategy.setChecked(True)
+            self.html_container_input.setText(sc.get("container", ""))
+        self._apply_mapping(fm.get("title", ""), self.title_mapping_input, self.title_mapping_options, is_h)
+        self._apply_mapping(fm.get("link", ""), self.link_mapping_input, self.link_mapping_options, is_h)
+        self._apply_mapping(fm.get("location", ""), self.location_mapping_input, self.location_mapping_options, is_h)
+        if "remove_from_title" in self.title_mapping_options:
+            self.title_mapping_options["remove_from_title"].setChecked(fm.get("remove_location_from_title", False))
+        
+        # Method
+        m = str(sc.get("method", "GET")).upper()
+        idx = self.request_method_combo.findText(m)
+        if idx >= 0: self.request_method_combo.setCurrentIndex(idx)
+        
+        for k, inp in [("params", self.request_params_input), ("payload", self.request_payload_input), ("headers", self.request_headers_input)]:
+            if k in sc:
+                text_val = json.dumps(StudioDialog.expand_json_strings(sc[k]), indent=2)
+                inp.setPlainText(text_val)
 
-            # Link
-            link = mapping.get("link", "")
-            if isinstance(link, dict):
-                self.field_link.setText(link.get("selector", ""))
-                self.field_link_opts["attr"].setText(link.get("attr", "href"))
-                self.field_link_opts["prefix"].setText(link.get("prefix", ""))
-                self.field_link_opts["suffix"].setText(link.get("suffix", ""))
-                if "source" in link:
-                    self.field_link_opts["source"].setCurrentText(link["source"])
-            else:
-                self.field_link.setText(str(link))
+    def _build_studio_config_dict(self):
+        if self.is_edit_mode:
+            sid = self.id_display.text()
+        else:
+            sid = self.id_input.text().strip() if hasattr(self, 'id_input') else "temp"
+            
+        is_h = self.radio_html_strategy.isChecked()
+        
+        # Start with original scraping config if it exists
+        if self.is_edit_mode and self.studio_data:
+            sc = dict(self.studio_data.get("scraping", {}))
+        else:
+            sc = {}
+            
+        sc["strategy"] = "html" if is_h else "json"
+        sc["method"] = self.request_method_combo.currentText()
+        
+        fm = {}
+        def build_f(mi, opts):
+            sel = mi.text().strip()
+            is_u = opts.get("source").isChecked() if "source" in opts else False
+            ho = is_u
+            for k, w in opts.items():
+                if k in ["source", "remove_from_title"]: continue
+                if (isinstance(w, QtWidgets.QSpinBox) and w.value() != 0) or (isinstance(w, QtWidgets.QLineEdit) and w.text().strip()):
+                    ho = True
+                    break
+            if not ho: return sel
+            key_name = "selector" if is_h else "path"
+            d = {key_name: sel}
+            if is_u: d["source"] = "url"
+            for k, w in opts.items():
+                if k in ["source", "remove_from_title"]: continue
+                if isinstance(w, QtWidgets.QSpinBox):
+                    if w.value() != 0: d[k] = w.value()
+                elif isinstance(w, QtWidgets.QLineEdit):
+                    if w.text().strip(): d[k] = w.text().strip()
+            return d
+        fm["title"] = build_f(self.title_mapping_input, self.title_mapping_options)
+        fm["link"] = build_f(self.link_mapping_input, self.link_mapping_options)
+        fm["location"] = build_f(self.location_mapping_input, self.location_mapping_options)
+        if self.title_mapping_options.get("remove_from_title") and self.title_mapping_options["remove_from_title"].isChecked():
+            fm["remove_location_from_title"] = True
+        sc["map"] = fm
+        if is_h:
+            sc["container"] = self.html_container_input.text().strip()
+            sc.pop("path", None)
+        else:
+            sc["path"] = self.json_items_path_input.text().strip()
+            sc.pop("container", None)
+        for k, inp in [("params", self.request_params_input), ("payload", self.request_payload_input), ("headers", self.request_headers_input)]:
+            txt = inp.toPlainText().strip()
+            if txt:
+                try: 
+                    sc[k] = StudioDialog.compact_json_objects(json.loads(txt))
+                except: pass
+        curls = [u.strip() for u in re.split(r"[,;]", self.careers_input.text().strip()) if u.strip()]
+        res = {
+            "id": sid,
+            "name": self.name_input.text().strip(),
+            "logo_url": self.logo_input.text().strip(),
+            "careers_url": curls if len(curls) > 1 else curls[0] if curls else "",
+            "website": self.website_input.text().strip(),
+            "scraping": sc
+        }
+        return res
 
-            # Location
-            loc = mapping.get("location", "")
-            if isinstance(loc, dict):
-                self.field_location.setText(loc.get("selector", ""))
-                self.field_loc_opts["index"].setText(loc.get("index", ""))
-                self.field_loc_opts["regex"].setText(loc.get("regex", ""))
-                self.field_loc_opts["suffix"].setText(loc.get("suffix", ""))
-                if "source" in loc:
-                    self.field_loc_opts["source"].setCurrentText(loc["source"])
-            else:
-                self.field_location.setText(str(loc))
-            self.field_loc_opts["remove_from_title"].setChecked(mapping.get("remove_location_from_title", False))
-
-        # Request
-        self.req_method.setCurrentText(scrap.get("method", "GET"))
-
-        # Pretty-print Request fields with expanded JSON strings for better editing
-        if "params" in scrap:
-            pretty_params = StudioDialog.expand_json(scrap["params"])
-            self.req_params.setPlainText(json.dumps(pretty_params, indent=2))
-
-        if "payload" in scrap:
-            pretty_payload = StudioDialog.expand_json(scrap["payload"])
-            self.req_payload.setPlainText(json.dumps(pretty_payload, indent=2))
-
-        if "headers" in scrap:
-            pretty_headers = StudioDialog.expand_json(scrap["headers"])
-            self.req_headers.setPlainText(json.dumps(pretty_headers, indent=2))
-        self._on_tab_changed(self.tabs.currentIndex())
-
-    def on_save(self):
-        sid = self.studio_data.get("id") if self.is_edit else self.id_input.text().strip()
-        name = self.name_input.text().strip()
-
-        if not sid or not name:
-            QtWidgets.QMessageBox.warning(self, "Validation Error", "ID and Name are required.")
+    def on_test_config(self):
+        errs = self._validate_all_fields(True)
+        if errs:
+            QtWidgets.QMessageBox.warning(self, "Errors", "\n".join("- "+e for e in errs))
             return
+            
+        cfg = self._build_studio_config_dict()
+        self.last_test_config = cfg
+        self.test_btn.setEnabled(False)
+        self.test_status_label.setText("Testing...")
+        self.test_status_label.setStyleSheet("color: #888; text-decoration: none;")
+        self.test_status_label.setCursor(QtCore.Qt.ArrowCursor)
+        self.test_spinner.show()
+        
+        self.test_worker = TestWorker(cfg)
+        self.test_worker.finished.connect(self._on_test_finished)
+        self.test_worker.error.connect(self._on_test_error)
+        self.test_worker.start()
 
-        is_html = self.radio_html.isChecked()
-        scrap = {"strategy": "html" if is_html else "json"}
-        mapping = {}
-
-        def build_map(input_field, options, key_name):
-            val = input_field.text().strip()
-            src = options.get("source").currentText() if "source" in options else "item"
-
-            # Build object if any advanced option is set
-            is_complex = src != "item"
-            for k, v in options.items():
-                if k == "source":
-                    continue
-                if isinstance(v, QtWidgets.QLineEdit) and v.text().strip():
-                    is_complex = True
-
-            if not is_complex:
-                return val
-
-            m = {("selector" if is_html else "path"): val}
-            if src != "item":
-                m["source"] = src
-            for k, v in options.items():
-                if k == "source":
-                    continue
-                if isinstance(v, QtWidgets.QLineEdit):
-                    txt = v.text().strip()
-                    if txt:
-                        m[k] = txt
-                elif isinstance(v, QtWidgets.QCheckBox):
-                    # remove_from_title is handled specially in some cases but let's see
-                    pass
-            return m
-
-        mapping["title"] = build_map(self.field_title, self.field_title_opts, "title")
-        mapping["link"] = build_map(self.field_link, self.field_link_opts, "link")
-        mapping["location"] = build_map(self.field_location, self.field_loc_opts, "location")
-
-        if self.field_loc_opts["remove_from_title"].isChecked():
-            mapping["remove_location_from_title"] = True
-
-        if is_html:
-            fp = self.field_find_prev.text().strip()
-            if fp:
-                # If title is already a dict from build_map, update it. Otherwise, create a new dict.
-                if isinstance(mapping["title"], dict):
-                    mapping["title"]["find_previous"] = fp
-                else:
-                    mapping["title"] = {"selector": mapping["title"], "find_previous": fp}
+    def _on_test_finished(self, results):
+        self.last_test_jobs = results["jobs"]
+        self.last_test_logo_path = results["logo_path"]
+        
+        count = len(self.last_test_jobs)
+        if count == 0:
+            self.test_status_label.setText("⚠ Success (0 jobs)")
+            self.test_status_label.setStyleSheet("color: #f0ad4e; text-decoration: underline;")
         else:
-            scrap["path"] = self.json_path.text().strip()
-            fk = self.filter_key.text().strip()
-            fs = self.filter_sw.text().strip()
-            if fk and fs:
-                scrap["filter"] = {"key": fk, "startswith": fs}
+            self.test_status_label.setText("✅ Found " + str(count) + " jobs")
+            self.test_status_label.setStyleSheet("color: #5cb85c; text-decoration: underline;")
+            
+        self.test_status_label.setCursor(QtCore.Qt.PointingHandCursor)
+        self.test_spinner.hide()
+        self.test_btn.setEnabled(True)
 
-        scrap["map"] = mapping
+    def _on_test_error(self, err_msg):
+        self.test_spinner.hide()
+        self.test_btn.setEnabled(True)
+        self.test_status_label.setText("❌ Failed")
+        self.test_status_label.setStyleSheet("color: #ff5555; text-decoration: none;")
+        self.test_status_label.setCursor(QtCore.Qt.ArrowCursor)
+        QtWidgets.QMessageBox.critical(self, "Test Failed", str(err_msg))
 
-        # Method/Params/Payload/Headers
-        if self.req_method.currentText() == "POST":
-            scrap["method"] = "POST"
+    def on_show_test_preview(self):
+        if self.test_worker and self.test_worker.isRunning():
+            return
+        if not self.last_test_config:
+            return
+        p = TestPreviewDialog(self.last_test_config, self.last_test_jobs, self.last_test_logo_path, self)
+        p.exec_()
 
-        pm = self.req_params.toPlainText().strip()
-        if pm:
-            try:
-                p_obj = json.loads(pm)
-                # Compact any nested objects back to strings for site compatibility
-                scrap["params"] = StudioDialog.compact_json(p_obj)
-            except Exception:
-                pass
-
-        pl = self.req_payload.toPlainText().strip()
-        if pl:
-            try:
-                p_obj = json.loads(pl)
-                # For Payload, we usually keep it as a real object unless it's a specific Workday-style thing.
-                # But to follow "formatted for compatibility", we perform the same compaction check.
-                scrap["payload"] = StudioDialog.compact_json(p_obj)
-            except Exception:
-                pass
-
-        hd = self.req_headers.toPlainText().strip()
-        if hd:
-            try:
-                p_obj = json.loads(hd)
-                scrap["headers"] = StudioDialog.compact_json(p_obj)
-            except Exception:
-                pass
-
-        if not self.studio_data:
-            self.studio_data = {"id": sid}
-
-        c_url_text = self.careers_input.text().strip()
-        if "," in c_url_text or ";" in c_url_text:
-            # Split by comma or semicolon and clean up
-            import re
-
-            c_urls = [u.strip() for u in re.split(r"[,;]", c_url_text) if u.strip()]
-            careers_url = c_urls if len(c_urls) > 1 else c_urls[0] if c_urls else ""
-        else:
-            careers_url = c_url_text
-
-        self.studio_data.update(
-            {
-                "name": name,
-                "logo_url": self.logo_input.text().strip(),
-                "careers_url": careers_url,
-                "website": self.website_input.text().strip(),
-                "scraping": scrap,
-            }
-        )
-
+    def on_save_config(self):
+        errs = self._validate_all_fields(True)
+        if errs:
+            QtWidgets.QMessageBox.warning(self, "Errors", "\n".join("- "+e for e in errs))
+            return
+        self.studio_data = self._build_studio_config_dict()
         self.saved.emit(self.studio_data)
         self.accept()
