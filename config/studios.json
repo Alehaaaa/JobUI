@@ -1182,7 +1182,7 @@
                 "title": "translations.en.title",
                 "link": {
                     "path": "slug",
-                    "prefix": "https://squeezestudio.recruitee.com/o/"
+                    "prefix": "https://squeezestudio.recruitee.com/l/en/o/"
                 },
                 "location": "city"
             }
@@ -1427,6 +1427,23 @@
                 "link": "",
                 "location": {
                     "default": "Wroclaw, Poland"
+                }
+            }
+        }
+    },
+    {
+        "id": "pixelzoo",
+        "name": "Pixel Zoo",
+        "logo_url": "https://pixelzoo.com.au/wp-content/uploads/2023/07/Logo-Medium.png",
+        "careers_url": "https://pixelzoo.com.au/careers/",
+        "scraping": {
+            "strategy": "html",
+            "container": ".elementor-column.elementor-top-column:not(.elementor-hidden-desktop):has(a.elementor-button[href*='/careers/'])",
+            "map": {
+                "title": ".elementor-heading-title",
+                "link": ".elementor-button",
+                "location": {
+                    "default": "Brisbane, Australia"
                 }
             }
         }
