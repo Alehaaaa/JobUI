@@ -111,12 +111,32 @@ class LogoWorker(QtCore.QThread):
         if max_workers < 1:
             max_workers = 1
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(self.process_logo, s, ctx) for s in self.studios]
-            for future in concurrent.futures.as_completed(futures):
-                if not self._is_running:
-                    break
-                # results are handled via signals in process_logo
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+        future_to_studio = {executor.submit(self.process_logo, s, ctx): s for s in self.studios}
+        pending = set(future_to_studio.keys())
+
+        while pending and self._is_running:
+            try:
+                done, _ = concurrent.futures.wait(
+                    pending, timeout=0.2, return_when=concurrent.futures.FIRST_COMPLETED
+                )
+
+                for future in done:
+                    pending.remove(future)
+                    try:
+                        future.result()
+                    except Exception as e:
+                        if self._is_running:
+                            s = future_to_studio[future]
+                            logger.error(f"Error processing logo for {s.get('id', 'Unknown')}: {e}")
+            except Exception:
+                pass
+
+        if not self._is_running:
+            for f in pending:
+                f.cancel()
+
+        executor.shutdown(wait=False)
 
         if self._is_running:
             self.finished.emit()

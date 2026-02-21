@@ -72,7 +72,7 @@ class ConfigManager(QtCore.QObject):
             with self._get_db_connection() as conn:
                 # Enable WAL mode for better concurrency
                 conn.execute("PRAGMA journal_mode=WAL;")
-                
+
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS jobs (
                         job_hash TEXT PRIMARY KEY,
@@ -85,24 +85,19 @@ class ConfigManager(QtCore.QObject):
                         last_seen REAL
                     )
                 """)
-                
+
                 # Migration: Add new columns if they don't exist
                 cursor = conn.cursor()
                 cursor.execute("PRAGMA table_info(jobs)")
                 columns = [row["name"] for row in cursor.fetchall()]
-                
-                needed_columns = {
-                    "title": "TEXT",
-                    "link": "TEXT",
-                    "location": "TEXT",
-                    "extra_link": "TEXT"
-                }
-                
+
+                needed_columns = {"title": "TEXT", "link": "TEXT", "location": "TEXT", "extra_link": "TEXT"}
+
                 for col, col_type in needed_columns.items():
                     if col not in columns:
                         logger.info(f"Migrating DB: Adding {col} column to 'jobs' table.")
                         conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} {col_type}")
-                
+
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_studio_id ON jobs (studio_id)")
                 conn.commit()
         except sqlite3.Error as e:
@@ -124,19 +119,21 @@ class ConfigManager(QtCore.QObject):
                     ORDER BY first_seen DESC
                 """)
                 rows = cursor.fetchall()
-                
+
                 for row in rows:
                     sid = row["studio_id"]
                     if sid not in self.jobs_cache:
                         self.jobs_cache[sid] = []
-                    
-                    self.jobs_cache[sid].append({
-                        "title": row["title"] or "",
-                        "link": row["link"] or "",
-                        "location": row["location"] or "",
-                        "extra_link": row["extra_link"] or "",
-                        "first_seen": row["first_seen"]
-                    })
+
+                    self.jobs_cache[sid].append(
+                        {
+                            "title": row["title"] or "",
+                            "link": row["link"] or "",
+                            "location": row["location"] or "",
+                            "extra_link": row["extra_link"] or "",
+                            "first_seen": row["first_seen"],
+                        }
+                    )
                 logger.info(f"Loaded {len(rows)} jobs from database cache.")
         except sqlite3.Error as e:
             logger.error(f"Failed to load jobs from DB: {e}")
@@ -375,10 +372,10 @@ class ConfigManager(QtCore.QObject):
         try:
             # 1. Fetch existing history to determine 'first_seen' status
             existing_history = self._fetch_studio_history(studio_id)
-            
+
             # 2. Sync results to DB (Upsert new, update existing, remove stale)
             processed_jobs = self._sync_studio_jobs(studio_id, jobs, existing_history)
-            
+
             # 3. Sort by newness and update UI
             processed_jobs.sort(key=lambda x: float(x.get("first_seen", 0)), reverse=True)
 
@@ -420,16 +417,18 @@ class ConfigManager(QtCore.QObject):
             first_seen = existing_history.get(job_hash, now_ts)
 
             # Prepare for DB batch update (Upsert signature)
-            jobs_to_upsert.append((
-                job_hash, 
-                studio_id, 
-                job.get("title", ""),
-                job.get("link", ""),
-                job.get("location", ""),
-                job.get("extra_link", ""),
-                first_seen, 
-                now_ts
-            ))
+            jobs_to_upsert.append(
+                (
+                    job_hash,
+                    studio_id,
+                    job.get("title", ""),
+                    job.get("link", ""),
+                    job.get("location", ""),
+                    job.get("extra_link", ""),
+                    first_seen,
+                    now_ts,
+                )
+            )
 
         try:
             with self._get_db_connection() as conn:
@@ -437,7 +436,8 @@ class ConfigManager(QtCore.QObject):
 
                 # 1. Upsert: Insert new jobs or update last_seen/data for existing ones
                 if jobs_to_upsert:
-                    cursor.executemany("""
+                    cursor.executemany(
+                        """
                         INSERT INTO jobs (job_hash, studio_id, title, link, location, extra_link, first_seen, last_seen)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(job_hash) DO UPDATE SET
@@ -446,36 +446,42 @@ class ConfigManager(QtCore.QObject):
                             location = excluded.location,
                             extra_link = excluded.extra_link,
                             last_seen = excluded.last_seen
-                    """, jobs_to_upsert)
+                    """,
+                        jobs_to_upsert,
+                    )
 
                 # 2. Cleanup: Remove jobs older than 7 days
                 cursor.execute(
-                    "DELETE FROM jobs WHERE studio_id = ? AND last_seen < ?",
-                    (studio_id, day_7_threshold)
+                    "DELETE FROM jobs WHERE studio_id = ? AND last_seen < ?", (studio_id, day_7_threshold)
                 )
-                
+
                 # 3. Fetch current state (all jobs seen in last 7 days)
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT title, link, location, extra_link, first_seen 
                     FROM jobs 
                     WHERE studio_id = ?
                     ORDER BY first_seen DESC
-                """, (studio_id,))
-                
+                """,
+                    (studio_id,),
+                )
+
                 rows = cursor.fetchall()
                 conn.commit()
-                
+
                 processed_jobs = []
                 for row in rows:
-                    processed_jobs.append({
-                        "title": row["title"] or "",
-                        "link": row["link"] or "",
-                        "location": row["location"] or "",
-                        "extra_link": row["extra_link"] or "",
-                        "first_seen": row["first_seen"]
-                    })
+                    processed_jobs.append(
+                        {
+                            "title": row["title"] or "",
+                            "link": row["link"] or "",
+                            "location": row["location"] or "",
+                            "extra_link": row["extra_link"] or "",
+                            "first_seen": row["first_seen"],
+                        }
+                    )
                 return processed_jobs
-                
+
         except sqlite3.Error as e:
             logger.error(f"DB Sync failed for {studio_id}: {e}")
             return []
@@ -531,23 +537,37 @@ class JobWorker(QtCore.QThread):
         if max_workers < 1:
             max_workers = 1
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_studio = {executor.submit(self.scraper.fetch_jobs, studio): studio for studio in self.studios}
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+        future_to_studio = {
+            executor.submit(self.scraper.fetch_jobs, studio): studio for studio in self.studios
+        }
+        pending = set(future_to_studio.keys())
 
-            for future in concurrent.futures.as_completed(future_to_studio):
-                if not self._is_running:
-                    break
+        while pending and self._is_running:
+            try:
+                done, _ = concurrent.futures.wait(
+                    pending, timeout=0.2, return_when=concurrent.futures.FIRST_COMPLETED
+                )
 
-                studio = future_to_studio[future]
-                try:
-                    jobs = future.result()
-                    # Check again after potentially long result() call
-                    if self._is_running:
-                        self.jobs_ready.emit(studio.get("id"), jobs)
-                except Exception as e:
-                    if self._is_running:
-                        logger.error(f"Error processing jobs for {studio.get('name', 'Unknown')}: {e}")
-                        self.jobs_failed.emit(studio.get("id"), str(e))
+                for future in done:
+                    pending.remove(future)
+                    studio = future_to_studio[future]
+                    try:
+                        jobs = future.result()
+                        if self._is_running:
+                            self.jobs_ready.emit(studio.get("id"), jobs)
+                    except Exception as e:
+                        if self._is_running:
+                            logger.error(f"Error processing jobs for {studio.get('name', 'Unknown')}: {e}")
+                            self.jobs_failed.emit(studio.get("id"), str(e))
+            except Exception:
+                pass
+
+        if not self._is_running:
+            for f in pending:
+                f.cancel()
+
+        executor.shutdown(wait=False)
 
         if self._is_running:
             self.finished.emit()
