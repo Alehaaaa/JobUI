@@ -46,19 +46,23 @@ from .. import resources
 from .. import VERSION, TOOL_TITLE
 
 
+MAX_AGE_HIGHLIGHT_DAYS = 10
+DAY_SECS = 86400
+
+
 class JobWidget(QtWidgets.QFrame):
     clicked = QtCore.Signal()
 
     def __init__(self, job_data, parent=None):
         super(JobWidget, self).__init__(parent)
         self.job_data = job_data
-        
+
         # 1. Process data (logic)
         self._process_data()
-        
+
         # 2. Initialize widgets (texts/styles)
         self._init_ui()
-        
+
         # 3. Assemble layouts
         self._init_layout()
 
@@ -78,7 +82,7 @@ class JobWidget(QtWidgets.QFrame):
         self.time_text = ""
         self.is_new = False
         self.age_seconds = 9999999  # Default to very old
-        
+
         first_seen = self.job_data.get("first_seen")
         if first_seen:
             try:
@@ -92,22 +96,23 @@ class JobWidget(QtWidgets.QFrame):
                             self.first_seen_dt = datetime.fromisoformat(first_seen)
                     except ValueError:
                         pass
-                
+
                 if self.first_seen_dt:
                     delta = datetime.now() - self.first_seen_dt
                     self.age_seconds = int(delta.total_seconds())
-                    if self.age_seconds < 0: self.age_seconds = 0
+                    if self.age_seconds < 0:
+                        self.age_seconds = 0
 
                     if self.age_seconds < 3600:
                         self.time_text = "New"
-                    elif self.age_seconds < 86400:
+                    elif self.age_seconds < DAY_SECS:
                         self.time_text = f"{self.age_seconds // 3600}h ago"
-                    elif self.age_seconds < 604800:
-                        self.time_text = f"{self.age_seconds // 86400}d ago"
+                    elif self.age_seconds < 7 * DAY_SECS:
+                        self.time_text = f"{self.age_seconds // DAY_SECS}d ago"
                     else:
-                        self.time_text = f"{self.age_seconds // 604800}w ago"
+                        self.time_text = f"{self.age_seconds // (7 * DAY_SECS)}w ago"
 
-                    if self.age_seconds <= 432000:  # 5 days for highlighting/fading
+                    if self.age_seconds <= MAX_AGE_HIGHLIGHT_DAYS * DAY_SECS:
                         self.is_new = True
             except Exception:
                 pass
@@ -118,7 +123,7 @@ class JobWidget(QtWidgets.QFrame):
         self.setFrameStyle(QtWidgets.QFrame.Box | QtWidgets.QFrame.Plain)
         self.setCursor(QtCore.Qt.PointingHandCursor)
         self.setToolTip("Open Job Link")
-        
+
         # Title
         self.title_label = QtWidgets.QLabel(self.job_data.get("title", "Unknown"))
         self.title_label.setWordWrap(True)
@@ -145,40 +150,40 @@ class JobWidget(QtWidgets.QFrame):
         self.extra_link_btn = None
         extra_link = self.job_data.get("extra_link")
         if extra_link:
-             self.extra_link_btn = QtWidgets.QPushButton()
-             self.extra_link_btn.setIcon(resources.get_icon("info.svg"))
-             self.extra_link_btn.setToolTip("Open Job Info Link")
-             self.extra_link_btn.setFixedSize(20, 20)
-             self.extra_link_btn.setCursor(QtCore.Qt.PointingHandCursor)
-             self.extra_link_btn.clicked.connect(
-                 lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(extra_link))
-             )
+            self.extra_link_btn = QtWidgets.QPushButton()
+            self.extra_link_btn.setIcon(resources.get_icon("info.svg"))
+            self.extra_link_btn.setToolTip("Open Job Info Link")
+            self.extra_link_btn.setFixedSize(20, 20)
+            self.extra_link_btn.setCursor(QtCore.Qt.PointingHandCursor)
+            self.extra_link_btn.clicked.connect(
+                lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(extra_link))
+            )
 
         # Dynamic Styling
         self.setStyleSheet(JOB_WIDGET_STYLE)
-        
-        # Dynamic Highlighting: Green (0d) -> Orange (2d) -> Red (4d) -> Grey (5d)
-        day_secs = 86400
-        if self.is_new and self.age_seconds <= 5 * day_secs:
+
+        # Dynamic Highlighting: Green (0%) -> Orange (50%) -> Red (80%) -> Grey (100%)
+        max_secs = MAX_AGE_HIGHLIGHT_DAYS * DAY_SECS
+        if self.is_new and self.age_seconds <= max_secs:
             # Hue Interpolation Targets (RGB)
             target_green = (76, 175, 80)
             target_orange = (255, 152, 0)
             target_red = (244, 67, 54)
             target_grey = (85, 85, 85)
 
-            if self.age_seconds <= 2 * day_secs:
+            if self.age_seconds <= 0.5 * max_secs:
                 # Stage 1: Green to Orange
-                ratio = self.age_seconds / (2 * day_secs)
+                ratio = self.age_seconds / (0.5 * max_secs)
                 c1, c2 = target_green, target_orange
-            elif self.age_seconds <= 4 * day_secs:
+            elif self.age_seconds <= 0.8 * max_secs:
                 # Stage 2: Orange to Red
-                ratio = (self.age_seconds - 2 * day_secs) / (2 * day_secs)
+                ratio = (self.age_seconds - 0.5 * max_secs) / (0.3 * max_secs)
                 c1, c2 = target_orange, target_red
             else:
                 # Stage 3: Red to Grey
-                ratio = min(1.0, (self.age_seconds - 4 * day_secs) / (1 * day_secs))
+                ratio = min(1.0, (self.age_seconds - 0.8 * max_secs) / (0.2 * max_secs))
                 c1, c2 = target_red, target_grey
-            
+
             # Base Interpolated Color
             br = c1[0] + (c2[0] - c1[0]) * ratio
             bg = c1[1] + (c2[1] - c1[1]) * ratio
@@ -187,17 +192,17 @@ class JobWidget(QtWidgets.QFrame):
             # SATURATION DROP-OFF
             # Only brand new jobs (0h) are at 100% saturation of their target.
             # We fade saturation down to 40% over the first day.
-            sat_ratio = min(1.0, self.age_seconds / day_secs)
-            vibrancy = 1.0 - (0.6 * sat_ratio) # 1.0 -> 0.4
-            
+            sat_ratio = min(1.0, self.age_seconds / DAY_SECS)
+            vibrancy = 1.0 - (0.6 * sat_ratio)  # 1.0 -> 0.4
+
             # Blend base color with neutral grey (85, 85, 85) based on vibrancy
             r = int(br * vibrancy + 85 * (1 - vibrancy))
             g = int(bg * vibrancy + 85 * (1 - vibrancy))
             b = int(bb * vibrancy + 85 * (1 - vibrancy))
-            
+
             border_color = f"rgb({r}, {g}, {b})"
-            bg_alpha = 0.1 - (0.07 * (self.age_seconds / (5 * day_secs)))
-            
+            bg_alpha = 0.1 - (0.07 * (self.age_seconds / max_secs))
+
             # Text color (Always slightly brighter/closer to white for readability)
             tr = int(min(255, r + 40))
             tg = int(min(255, g + 40))
@@ -226,12 +231,12 @@ class JobWidget(QtWidgets.QFrame):
         main_layout = QtWidgets.QVBoxLayout(self)
         main_layout.setContentsMargins(6, 6, 6, 6)
         main_layout.setSpacing(2)
-        
+
         main_layout.addWidget(self.title_label)
 
         bottom_layout = QtWidgets.QHBoxLayout()
         bottom_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         # Add components to bottom row
         bottom_layout.addWidget(self.location_label, 1)
         if not self.clean_loc:
@@ -378,7 +383,9 @@ class StudioWidget(QtWidgets.QFrame):
         from .studio_dialog import StudioDialog
 
         existing_ids = [s.get("id") for s in self.config_manager.get_studios()]
-        dialog = StudioDialog(self.studio_data, self, existing_ids=existing_ids, config_manager=self.config_manager)
+        dialog = StudioDialog(
+            self.studio_data, self, existing_ids=existing_ids, config_manager=self.config_manager
+        )
         if dialog.exec_():
             # Delay update to avoid hard crash in Maya when parent widget is destroyed from child dialog signal
             QtCore.QTimer.singleShot(10, lambda: self.config_manager.update_studio(dialog.studio_data))
