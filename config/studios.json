@@ -317,6 +317,24 @@
         }
     },
     {
+        "id": "megalisvfx",
+        "name": "Megalis",
+        "logo_url": "https://images4.bamboohr.com/667951/logos/cropped.jpg",
+        "careers_url": "https://megalisvfx.bamboohr.com/careers/list",
+        "scraping": {
+            "strategy": "json",
+            "path": "result[*]",
+            "map": {
+                "title": "jobOpeningName",
+                "link": {
+                    "path": "id",
+                    "prefix": "https://megalisvfx.bamboohr.com/careers/"
+                },
+                "location": "location.city"
+            }
+        }
+    },
+    {
         "id": "wildchild",
         "name": "Wild Child Animation",
         "logo_url": "https://wildchildanimation.com/wp-content/uploads/2025/05/logo.svg",
