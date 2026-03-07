@@ -43,15 +43,6 @@
 - Implemented filtering logic in `StudioGridView` to hide studios with no matching jobs when enabled
 - Added `filteredJobs` helper function to compute matching jobs per studio
 
-## Notes for Little Zoo
-
-The Little Zoo studio configuration in `studios.json` uses:
-```json
-"container": "div.sqs-block.markdown-block h2"
-```
-
-This selector directly targets `h2` elements as containers. The current implementation should handle this correctly as it extracts text from the element itself when no specific mapping is provided. If issues persist, the selector may need to be adjusted to target the parent container instead.
-
 ## Testing Recommendations
 
 1. **Clear the image cache** to ensure all logos are re-downloaded with the new hashing system:
