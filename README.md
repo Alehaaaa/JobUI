@@ -1,3 +1,5 @@
+> **Migrated to [Alehaaaa/JobSearcher](https://github.com/Alehaaaa/JobSearcher).** This repository is now a historical backup. Its Python/Maya source is on [JobSearcher `main`](https://github.com/Alehaaaa/JobSearcher/tree/main), native macOS code on [`mac`](https://github.com/Alehaaaa/JobSearcher/tree/mac), and browser application source on [`web-app`](https://github.com/Alehaaaa/JobSearcher/tree/web-app). The live website remains [JobSearcher Pages](https://alehaaaa.github.io/JobSearcher/). Please direct new changes to the new repository.
+
 # JobUI
 
 JobUI is a job application tracker and manager designed to help VFX artists find and organize job openings from various studios.
